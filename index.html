@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Oxford 3000 Mastery</title>
+    <meta name="theme-color" content="#0c0f1a">
+    <link rel="manifest" href="/voc/manifest.json">
+    <link rel="stylesheet" href="/voc/css/main.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="top-header">
+        <div class="stat-box">
+            <span class="stat-val text-gold" id="stat-level">Lvl 1</span>
+            <span class="stat-lbl">Beginner</span>
+        </div>
+        <div class="stat-box">
+            <span class="stat-val text-green" id="stat-mastered">0</span>
+            <span class="stat-lbl">Mastered</span>
+        </div>
+        <div class="stat-box">
+            <span class="stat-val text-rose" id="stat-streak">0🔥</span>
+            <span class="stat-lbl">Streak</span>
+        </div>
+        <button id="theme-toggle" class="btn-icon">🌓</button>
+    </header>
+
+    <main id="app-content">
+        <section id="view-dashboard" class="view active">
+            <h1 class="title-serif">Welcome back, <br><em class="text-gold">Future Master</em></h1>
+            <div class="card daily-challenge">
+                <h3>Daily Challenge</h3>
+                <p>20 New Words • 50 Reviews • 1 Dictation</p>
+                <div class="progress-bar"><div class="progress-fill" style="width: 0%;"></div></div>
+                <button class="btn-gold w-100 mt-2" onclick="app.router.navigate('flashcards')">Start Session</button>
+            </div>
+            
+            <div class="grid-menu mt-2">
+                <button class="menu-card" onclick="app.router.navigate('flashcards')">
+                    <span class="icon">🗂️</span>
+                    <span>Flashcards</span>
+                </button>
+                <button class="menu-card" onclick="app.router.navigate('speaking')">
+                    <span class="icon">🗣️</span>
+                    <span>Speaking</span>
+                </button>
+            </div>
+        </section>
+
+        <section id="view-flashcards" class="view hidden">
+            <div class="flashcard-container" id="srs-card">
+                <div class="card-inner">
+                    <div class="card-front">
+                        <p class="category-tag" id="fc-category">Loading...</p>
+                        <h2 class="word-display" id="fc-word">...</h2>
+                        <p class="ipa-display" id="fc-ipa">...</p>
+                        <button class="btn-audio" id="btn-play-audio">🔊</button>
+                    </div>
+                    <div class="card-back hidden" id="fc-back">
+                        <hr>
+                        <h3 class="translation" id="fc-translation">...</h3>
+                        <div class="context-box">
+                            <p class="example-en" id="fc-ex-en">...</p>
+                            <p class="example-fr" id="fc-ex-fr">...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="action-buttons mt-2" id="fc-actions-front">
+                <button class="btn-gold w-100" id="btn-reveal">Show Answer</button>
+            </div>
+            <div class="action-buttons mt-2 hidden grid-3" id="fc-actions-back">
+                <button class="btn-outline text-rose" onclick="app.srs.processReview(1)">Again (1m)</button>
+                <button class="btn-outline text-gold" onclick="app.srs.processReview(3)">Good (1d)</button>
+                <button class="btn-outline text-green" onclick="app.srs.processReview(5)">Easy (4d)</button>
+            </div>
+        </section>
+
+        <section id="view-speaking" class="view hidden">
+            <h2 class="title-serif text-center">Pronunciation</h2>
+            <div class="card text-center mt-2">
+                <h3 class="word-display text-gold" id="speak-target">...</h3>
+                <p>Tap the mic and say the word</p>
+                <button class="btn-mic mt-2" id="btn-record">🎙️</button>
+                <p id="speak-feedback" class="mt-2"></p>
+            </div>
+        </section>
+    </main>
+
+    <nav class="bottom-nav">
+        <button class="nav-item active" data-target="dashboard">🏠<br>Home</button>
+        <button class="nav-item" data-target="flashcards">🃏<br>Review</button>
+        <button class="nav-item" data-target="speaking">🗣️<br>Speak</button>
+    </nav>
+
+    <script src="/voc/js/app.js"></script>
+</body>
+</html>
