@@ -1,0 +1,152 @@
+[
+  {
+    "id": 1,
+    "word": "abandon",
+    "level": "B2",
+    "category": "verb",
+    "translation": "abandonner",
+    "ipa": "/əˈbændən/",
+    "example": "They had to abandon the sinking ship.",
+    "example_fr": "Ils ont dû abandonner le navire en train de couler."
+  },
+  {
+    "id": 2,
+    "word": "ability",
+    "level": "A2",
+    "category": "noun",
+    "translation": "capacité",
+    "ipa": "/əˈbɪləti/",
+    "example": "She has a natural ability for music.",
+    "example_fr": "Elle a une capacité naturelle pour la musique."
+  },
+  {
+    "id": 3,
+    "word": "able",
+    "level": "A2",
+    "category": "adjective",
+    "translation": "capable",
+    "ipa": "/ˈeɪb(ə)l/",
+    "example": "He is able to speak three languages.",
+    "example_fr": "Il est capable de parler trois langues."
+  },
+  {
+    "id": 4,
+    "word": "about",
+    "level": "A1",
+    "category": "preposition",
+    "translation": "à propos de",
+    "ipa": "/əˈbaʊt/",
+    "example": "Tell me about your day.",
+    "example_fr": "Parle-moi de ta journée."
+  },
+  {
+    "id": 5,
+    "word": "above",
+    "level": "A1",
+    "category": "preposition",
+    "translation": "au-dessus de",
+    "ipa": "/əˈbʌv/",
+    "example": "The plane flew above the clouds.",
+    "example_fr": "L'avion a volé au-dessus des nuages."
+  },
+  {
+    "id": 6,
+    "word": "accept",
+    "level": "A2",
+    "category": "verb",
+    "translation": "accepter",
+    "ipa": "/əkˈsɛpt/",
+    "example": "She accepted the job offer.",
+    "example_fr": "Elle a accepté l'offre d'emploi."
+  },
+  {
+    "id": 7,
+    "word": "accident",
+    "level": "A2",
+    "category": "noun",
+    "translation": "accident",
+    "ipa": "/ˈæksɪdənt/",
+    "example": "There was a car accident on the highway.",
+    "example_fr": "Il y a eu un accident de voiture sur l'autoroute."
+  },
+  {
+    "id": 8,
+    "word": "achieve",
+    "level": "B1",
+    "category": "verb",
+    "translation": "réussir / atteindre",
+    "ipa": "/əˈtʃiːv/",
+    "example": "You can achieve anything with hard work.",
+    "example_fr": "Tu peux réussir n'importe quoi avec du travail."
+  },
+  {
+    "id": 9,
+    "word": "across",
+    "level": "A1",
+    "category": "preposition",
+    "translation": "à travers / de l'autre côté",
+    "ipa": "/əˈkrɒs/",
+    "example": "She walked across the bridge.",
+    "example_fr": "Elle a traversé le pont à pied."
+  },
+  {
+    "id": 10,
+    "word": "act",
+    "level": "A2",
+    "category": "verb",
+    "translation": "agir",
+    "ipa": "/ækt/",
+    "example": "We need to act quickly.",
+    "example_fr": "Nous devons agir rapidement."
+  },
+  {
+    "id": 11,
+    "word": "add",
+    "level": "A1",
+    "category": "verb",
+    "translation": "ajouter",
+    "ipa": "/æd/",
+    "example": "Add some salt to the soup.",
+    "example_fr": "Ajoutez du sel dans la soupe."
+  },
+  {
+    "id": 12,
+    "word": "admit",
+    "level": "B1",
+    "category": "verb",
+    "translation": "admettre",
+    "ipa": "/ədˈmɪt/",
+    "example": "He finally admitted his mistake.",
+    "example_fr": "Il a finalement admis son erreur."
+  },
+  {
+    "id": 13,
+    "word": "adult",
+    "level": "A2",
+    "category": "noun",
+    "translation": "adulte",
+    "ipa": "/ˈædʌlt/",
+    "example": "This film is for adults only.",
+    "example_fr": "Ce film est réservé aux adultes."
+  },
+  {
+    "id": 14,
+    "word": "affect",
+    "level": "B1",
+    "category": "verb",
+    "translation": "affecter",
+    "ipa": "/əˈfɛkt/",
+    "example": "The weather affects my mood.",
+    "example_fr": "La météo affecte mon humeur."
+  },
+  {
+    "id": 15,
+    "word": "afraid",
+    "level": "A1",
+    "category": "adjective",
+    "translation": "effrayé / avoir peur",
+    "ipa": "/əˈfreɪd/",
+    "example": "She was afraid of the dark.",
+    "example_fr": "Elle avait peur du noir."
+  }
+]
