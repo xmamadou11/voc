@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oxford 3000 — Validator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  /* ── Reset & base ───────────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0d0f14;
+    --surface:   #141820;
+    --surface2:  #1c2230;
+    --border:    #252d3d;
+    --border2:   #2e3a50;
+    --text:      #c8d4e8;
+    --muted:     #4a5a78;
+    --accent:    #4af0c4;
+    --accent2:   #1fcfa6;
+    --ok:        #4af0c4;
+    --warn:      #f0c94a;
+    --err:       #f04a6a;
+    --ok-bg:     rgba(74,240,196,.08);
+    --warn-bg:   rgba(240,201,74,.08);
+    --err-bg:    rgba(240,74,106,.08);
+    --mono:      'Space Mono', monospace;
+    --sans:      'Syne', sans-serif;
+  }
+
+  html { background: var(--bg); color: var(--text); font-family: var(--mono); font-size: 14px; min-height: 100vh; }
+
+  body { max-width: 900px; margin: 0 auto; padding: 48px 24px 80px; }
+
+  /* ── Header ─────────────────────────────────────────────────────────────── */
+  header { margin-bottom: 52px; }
+
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 3px 8px;
+    margin-bottom: 16px;
+    opacity: .8;
+  }
+
+  h1 {
+    font-family: var(--sans);
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 800;
+    color: #fff;
+    line-height: 1.05;
+    letter-spacing: -.02em;
+  }
+  h1 span { color: var(--accent); }
+
+  .sub {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: .04em;
+  }
+
+  /* ── Drop zone ───────────────────────────────────────────────────────────── */
+  #drop-zone {
+    position: relative;
+    border: 1.5px dashed var(--border2);
+    border-radius: 4px;
+    padding: 52px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    background: var(--surface);
+    margin-bottom: 40px;
+    overflow: hidden;
+  }
+  #drop-zone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 60% 50% at 50% 120%, rgba(74,240,196,.06), transparent);
+    pointer-events: none;
+  }
+  #drop-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(74,240,196,.04);
+  }
+
+  .drop-icon {
+    font-size: 36px;
+    margin-bottom: 16px;
+    display: block;
+    opacity: .5;
+    transition: opacity .2s, transform .2s;
+  }
+  #drop-zone.dragover .drop-icon { opacity: 1; transform: scale(1.1); }
+
+  .drop-label {
+    font-family: var(--sans);
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .drop-sub { font-size: 11px; color: var(--muted); letter-spacing: .06em; }
+
+  #file-input { display: none; }
+
+  .btn-pick {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 8px 20px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    background: transparent;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .btn-pick:hover { background: var(--accent); color: var(--bg); }
+
+  /* ── Loader ──────────────────────────────────────────────────────────────── */
+  #loader {
+    display: none;
+    text-align: center;
+    padding: 32px;
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: .1em;
+  }
+  .spinner {
+    width: 28px; height: 28px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    margin: 0 auto 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Report ──────────────────────────────────────────────────────────────── */
+  #report { display: none; animation: fadeIn .4s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+
+  /* Verdict banner */
+  .verdict {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px 24px;
+    border-radius: 4px;
+    margin-bottom: 32px;
+    border: 1px solid;
+  }
+  .verdict.pass  { background: var(--ok-bg);   border-color: var(--ok);   }
+  .verdict.warn  { background: var(--warn-bg);  border-color: var(--warn); }
+  .verdict.fail  { background: var(--err-bg);   border-color: var(--err);  }
+
+  .verdict-icon { font-size: 28px; flex-shrink: 0; }
+  .verdict-title {
+    font-family: var(--sans);
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff;
+  }
+  .verdict-sub { font-size: 11px; color: var(--muted); margin-top: 2px; letter-spacing: .05em; }
+
+  /* Stats row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  .stat-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 16px 18px;
+    border-radius: 4px;
+  }
+  .stat-num {
+    font-family: var(--sans);
+    font-size: 28px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -.02em;
+    line-height: 1;
+  }
+  .stat-label {
+    font-size: 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+  .stat-box.ok   .stat-num { color: var(--ok);   }
+  .stat-box.warn .stat-num { color: var(--warn); }
+  .stat-box.err  .stat-num { color: var(--err);  }
+
+  /* CEFR distribution */
+  .distrib {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 20px 24px;
+    border-radius: 4px;
+    margin-bottom: 32px;
+  }
+  .distrib-title {
+    font-size: 10px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+  .bar-row { margin-bottom: 12px; }
+  .bar-row:last-child { margin-bottom: 0; }
+  .bar-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 5px;
+  }
+  .bar-lvl {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 13px;
+    color: #fff;
+  }
+  .bar-count { font-size: 11px; color: var(--muted); }
+  .bar-track {
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--accent);
+    transition: width 1s cubic-bezier(.22,1,.36,1);
+  }
+  .bar-fill[data-lvl="A1"] { background: #4af0c4; }
+  .bar-fill[data-lvl="A2"] { background: #4ab8f0; }
+  .bar-fill[data-lvl="B1"] { background: #a04af0; }
+  .bar-fill[data-lvl="B2"] { background: #f04a6a; }
+
+  /* Checks list */
+  .checks-title {
+    font-size: 10px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .check-item {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 8px;
+    overflow: hidden;
+    transition: border-color .15s;
+  }
+  .check-item.ok   { border-color: rgba(74,240,196,.2);  }
+  .check-item.warn { border-color: rgba(240,201,74,.25); }
+  .check-item.err  { border-color: rgba(240,74,106,.3);  }
+
+  .check-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+    background: var(--surface);
+  }
+  .check-item.ok   .check-header { background: var(--ok-bg);   }
+  .check-item.warn .check-header { background: var(--warn-bg); }
+  .check-item.err  .check-header { background: var(--err-bg);  }
+
+  .check-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .check-item.ok   .check-dot { background: var(--ok);   box-shadow: 0 0 8px var(--ok); }
+  .check-item.warn .check-dot { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+  .check-item.err  .check-dot { background: var(--err);  box-shadow: 0 0 8px var(--err); }
+
+  .check-label {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.4;
+  }
+  .check-item.ok   .check-label { color: #e0ede9; }
+  .check-item.warn .check-label { color: #ede9d0; }
+  .check-item.err  .check-label { color: #edced4; }
+
+  .check-tag {
+    font-size: 10px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 2px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .check-item.ok   .check-tag { color: var(--ok);   background: rgba(74,240,196,.12); }
+  .check-item.warn .check-tag { color: var(--warn); background: rgba(240,201,74,.12); }
+  .check-item.err  .check-tag { color: var(--err);  background: rgba(240,74,106,.12); }
+
+  .check-arrow {
+    font-size: 10px;
+    color: var(--muted);
+    transition: transform .2s;
+    flex-shrink: 0;
+  }
+  .check-item.open .check-arrow { transform: rotate(90deg); }
+
+  .check-body {
+    display: none;
+    padding: 12px 16px 14px 36px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    line-height: 1.9;
+    color: var(--muted);
+  }
+  .check-item.open .check-body { display: block; }
+
+  .detail-group { margin-bottom: 10px; }
+  .detail-group:last-child { margin-bottom: 0; }
+
+  .detail-head {
+    font-size: 10px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .detail-line {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    padding: 1px 0;
+    padding-left: 10px;
+    border-left: 2px solid var(--border2);
+  }
+  .detail-line.highlight { color: var(--err); border-color: var(--err); }
+
+  /* Reset btn */
+  #reset-btn {
+    display: none;
+    margin-top: 36px;
+    padding: 10px 24px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    border: 1px solid var(--border2);
+    color: var(--muted);
+    background: transparent;
+    cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  #reset-btn:hover { border-color: var(--text); color: var(--text); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="badge">Oxford 3000 · CEFR Validator</div>
+  <h1>Validate your<br><span>word list</span></h1>
+  <p class="sub">Dépose ton fichier JSON — 10 vérifications automatiques</p>
+</header>
+
+<!-- Drop zone -->
+<div id="drop-zone">
+  <span class="drop-icon">📂</span>
+  <div class="drop-label">Glisse ton fichier JSON ici</div>
+  <div class="drop-sub">ou clique pour parcourir</div>
+  <button class="btn-pick" onclick="document.getElementById('file-input').click()">Choisir un fichier</button>
+  <input type="file" id="file-input" accept=".json,application/json">
+</div>
+
+<!-- Loader -->
+<div id="loader">
+  <div class="spinner"></div>
+  Analyse en cours…
+</div>
+
+<!-- Report -->
+<div id="report"></div>
+<button id="reset-btn" onclick="resetApp()">↩ Analyser un autre fichier</button>
+
+<script>
+// ── Validation logic ───────────────────────────────────────────────────────
+
+const VALID_LEVELS   = new Set(['A1','A2','B1','B2']);
+const VALID_SEQUENCE = ['A1','A2','B1','B2'];
+const WORD_RE        = /^[a-z][a-z'\-]*$/;
+const EXPECTED_MIN   = 2900;
+const EXPECTED_MAX   = 3100;
+
+const SPOT_CHECK = {
+  abandon:'B2', ability:'A2', able:'A2', about:'A1', accept:'A2',
+  actor:'A1', add:'A1', after:'A1', beautiful:'A1', begin:'A1',
+  believe:'A1', acknowledge:'B2', acquire:'B2', philosophy:'B2',
+  zone:'B2', phenomenon:'B2', alcohol:'B1', virus:'A2',
+  umbrella:'A1', kitchen:'A1', achieve:'A2', analysis:'B1',
+};
+
+function validate(data) {
+  const checks = [];
+
+  // Helper to push a result
+  function add(status, label, details=[]) {
+    checks.push({ status, label, details });
+  }
+
+  // 1 — Top-level type
+  if (!Array.isArray(data)) {
+    add('err', `La racine doit être un tableau JSON — reçu: ${typeof data}`);
+    return { checks, data: null };
+  }
+  add('ok', 'Racine valide — tableau JSON');
+
+  // 2 — Count
+  const n = data.length;
+  if (n === 0) {
+    add('err', 'Le tableau est vide — 0 entrées');
+  } else if (n >= EXPECTED_MIN && n <= EXPECTED_MAX) {
+    add('ok', `Nombre d'entrées: ${n.toLocaleString('fr')}  (attendu ${EXPECTED_MIN.toLocaleString('fr')}–${EXPECTED_MAX.toLocaleString('fr')})`);
+  } else {
+    add('warn', `Nombre d'entrées ${n.toLocaleString('fr')} hors de la plage attendue ${EXPECTED_MIN.toLocaleString('fr')}–${EXPECTED_MAX.toLocaleString('fr')}`);
+  }
+
+  // 3 — Schema
+  const missingWord=[], missingLevel=[], wrongType=[], extraKeys=[], nullVals=[];
+  for (let i = 0; i < data.length; i++) {
+    const e = data[i];
+    if (typeof e !== 'object' || e === null || Array.isArray(e)) {
+      wrongType.push(`[${i}] n'est pas un objet`); continue;
+    }
+    const keys = new Set(Object.keys(e));
+    if (!keys.has('word'))  missingWord.push(`[${i}] ${JSON.stringify(e).slice(0,60)}`);
+    else if (e.word === null) nullVals.push(`[${i}] word est null`);
+    else if (typeof e.word !== 'string') wrongType.push(`[${i}] word n'est pas une chaîne`);
+
+    if (!keys.has('level')) missingLevel.push(`[${i}] ${e.word || '?'}`);
+    else if (e.level === null) nullVals.push(`[${i}] level est null`);
+    else if (typeof e.level !== 'string') wrongType.push(`[${i}] level n'est pas une chaîne`);
+
+    const extra = [...keys].filter(k => k !== 'word' && k !== 'level');
+    if (extra.length) extraKeys.push(`[${i}] "${e.word||'?'}" — clés inattendues: ${extra.join(', ')}`);
+  }
+  const schemaIssues = missingWord.length + missingLevel.length + wrongType.length + extraKeys.length + nullVals.length;
+  if (!schemaIssues) {
+    add('ok', 'Schéma valide — toutes les entrées ont exactement {word, level}');
+  } else {
+    const det = [];
+    if (missingWord.length)  det.push({head:`Champ 'word' manquant (${missingWord.length})`, lines:missingWord.slice(0,8)});
+    if (missingLevel.length) det.push({head:`Champ 'level' manquant (${missingLevel.length})`, lines:missingLevel.slice(0,8)});
+    if (wrongType.length)    det.push({head:`Type incorrect (${wrongType.length})`, lines:wrongType.slice(0,8)});
+    if (extraKeys.length)    det.push({head:`Clés inattendues (${extraKeys.length})`, lines:extraKeys.slice(0,8)});
+    if (nullVals.length)     det.push({head:`Valeurs null (${nullVals.length})`, lines:nullVals.slice(0,8)});
+    add('err', `Erreurs de schéma: ${schemaIssues} problème(s)`, det);
+  }
+
+  // 4 — Levels
+  const badLevels = data.filter(e => typeof e.level === 'string' && !VALID_LEVELS.has(e.level));
+  const nullLevels = data.filter(e => e.level === null || e.level === undefined);
+  if (!badLevels.length && !nullLevels.length) {
+    add('ok', `Toutes les valeurs de niveau sont valides  (A1 / A2 / B1 / B2)`);
+  } else {
+    const all = [...badLevels.map(e=>`"${e.word||'?'}" → "${e.level}"`), ...nullLevels.map(e=>`"${e.word||'?'}" → null`)];
+    add('err', `Niveaux CEFR invalides: ${all.length} entrée(s)`,
+      [{head:'Niveaux incorrects', lines: all.slice(0,12)}]);
+  }
+
+  // 5 — Word format
+  const badEmpty=[], badUpper=[], badChars=[], badSpaces=[];
+  for (const e of data) {
+    const w = e.word;
+    if (typeof w !== 'string') continue;
+    if (w.trim() === '')         badEmpty.push(JSON.stringify(w));
+    else if (/\s/.test(w))       badSpaces.push(`"${w}"`);
+    else if (w !== w.toLowerCase()) badUpper.push(`"${w}"`);
+    else if (!WORD_RE.test(w))   badChars.push(`"${w}"`);
+  }
+  const fmtIssues = badEmpty.length + badUpper.length + badChars.length + badSpaces.length;
+  if (!fmtIssues) {
+    add('ok', 'Format des mots valide  (minuscules, caractères autorisés)');
+  } else {
+    const det = [];
+    if (badEmpty.length)  det.push({head:`Mots vides (${badEmpty.length})`, lines:badEmpty.slice(0,8)});
+    if (badUpper.length)  det.push({head:`Majuscules détectées (${badUpper.length})`, lines:badUpper.slice(0,10)});
+    if (badSpaces.length) det.push({head:`Contient des espaces (${badSpaces.length})`, lines:badSpaces.slice(0,8)});
+    if (badChars.length)  det.push({head:`Caractères invalides (${badChars.length})`, lines:badChars.slice(0,10)});
+    add('warn', `Problèmes de format: ${fmtIssues} entrée(s)`, det);
+  }
+
+  // 6 — Duplicates & conflicts
+  const wordCount = {};
+  const wordLevels = {};
+  for (const e of data) {
+    const w = e.word;
+    if (typeof w !== 'string') continue;
+    wordCount[w] = (wordCount[w]||0) + 1;
+    if (!wordLevels[w]) wordLevels[w] = [];
+    wordLevels[w].push(e.level);
+  }
+  const dups = Object.entries(wordCount).filter(([,n])=>n>1);
+  if (!dups.length) {
+    add('ok', 'Aucun doublon de mot détecté');
+  } else {
+    const lines = dups.sort((a,b)=>b[1]-a[1]).slice(0,15)
+      .map(([w,n])=>`"${w}"  ×${n}  niveaux: [${wordLevels[w].join(', ')}]`);
+    if (dups.length > 15) lines.push(`… et ${dups.length-15} autres`);
+    add('err', `Doublons: ${dups.length} mot(s) répété(s)`,
+      [{head:`Mots dupliqués (${dups.length})`, lines}]);
+  }
+
+  // 7 — Level conflicts (same word, different levels)
+  const conflicts = Object.entries(wordLevels).filter(([,lvls])=>new Set(lvls).size>1);
+  if (!conflicts.length) {
+    add('ok', 'Aucun conflit de niveau (même mot, niveaux différents)');
+  } else {
+    const lines = conflicts.slice(0,10).map(([w,lvls])=>`"${w}" → [${lvls.join(', ')}]`);
+    add('warn', `Conflits de niveau: ${conflicts.length} mot(s)`,
+      [{head:'Même mot, niveaux différents', lines}]);
+  }
+
+  // 8 — Sort order
+  const words = data.map(e=>e.word||'');
+  const sorted = [...words].sort();
+  if (words.join('\0') === sorted.join('\0')) {
+    add('ok', 'Entrées triées par ordre alphabétique');
+  } else {
+    const idx = words.findIndex((w,i)=>w!==sorted[i]);
+    add('warn', 'Entrées non triées alphabétiquement',
+      [{head:'Premier désordre', lines:[`index ${idx}: "${words[idx]}" (attendu "${sorted[idx]}")`]}]);
+  }
+
+  // 9 — Distribution
+  const total = data.length;
+  const countByLevel = {};
+  for (const lvl of VALID_SEQUENCE) countByLevel[lvl]=0;
+  for (const e of data) if (VALID_LEVELS.has(e.level)) countByLevel[e.level]++;
+
+  const distIssues = [];
+  for (const lvl of VALID_SEQUENCE) {
+    const pct = total ? countByLevel[lvl]/total*100 : 0;
+    if (pct < 15) distIssues.push(`${lvl}: ${countByLevel[lvl]} (${pct.toFixed(1)}%) — trop faible`);
+    else if (pct > 42) distIssues.push(`${lvl}: ${countByLevel[lvl]} (${pct.toFixed(1)}%) — trop élevé`);
+  }
+  const distLine = VALID_SEQUENCE.map(l=>`${l}: ${countByLevel[l]} (${total?((countByLevel[l]/total)*100).toFixed(1):0}%)`).join('  ');
+  if (!distIssues.length) {
+    add('ok', 'Distribution des niveaux équilibrée', [{head:'Répartition', lines:[distLine]}]);
+  } else {
+    add('warn', 'Distribution inhabituelle',
+      [{head:'Anomalies', lines:distIssues}, {head:'Répartition', lines:[distLine]}]);
+  }
+
+  // 10 — Spot-check
+  const lookup = {};
+  for (const e of data) if (e.word && e.level) lookup[e.word] = e.level;
+  const missing=[], wrong=[];
+  for (const [w, exp] of Object.entries(SPOT_CHECK)) {
+    if (!(w in lookup)) missing.push(w);
+    else if (lookup[w] !== exp) wrong.push(`"${w}" — attendu ${exp}, reçu ${lookup[w]}`);
+  }
+  if (!missing.length && !wrong.length) {
+    add('ok', `Spot-check: ${Object.keys(SPOT_CHECK).length} mots connus — niveaux corrects`);
+  } else {
+    const det=[];
+    if (missing.length) det.push({head:`Mots absents (${missing.length})`, lines:missing});
+    if (wrong.length)   det.push({head:`Niveau incorrect (${wrong.length})`, lines:wrong, highlight:true});
+    add(wrong.length?'err':'warn',
+      `Spot-check: ${missing.length} absents, ${wrong.length} niveaux erronés`, det);
+  }
+
+  return { checks, countByLevel, total };
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+
+function renderReport(filename, result) {
+  const { checks, countByLevel, total } = result;
+
+  const nOk   = checks.filter(c=>c.status==='ok').length;
+  const nWarn = checks.filter(c=>c.status==='warn').length;
+  const nErr  = checks.filter(c=>c.status==='err').length;
+
+  const verdictClass = nErr ? 'fail' : nWarn ? 'warn' : 'pass';
+  const verdictIcon  = nErr ? '✘' : nWarn ? '⚠' : '✔';
+  const verdictTitle = nErr ? 'ÉCHEC — Erreurs détectées'
+                     : nWarn ? 'PASSÉ avec avertissements'
+                     : 'TOUS LES CHECKS PASSÉS';
+  const verdictSub   = `${filename} · ${total ? total.toLocaleString('fr') : '?'} mots`;
+
+  let html = `
+    <div class="verdict ${verdictClass}">
+      <div class="verdict-icon">${verdictIcon}</div>
+      <div>
+        <div class="verdict-title">${verdictTitle}</div>
+        <div class="verdict-sub">${verdictSub}</div>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-box">
+        <div class="stat-num">${total ? total.toLocaleString('fr') : '?'}</div>
+        <div class="stat-label">Mots uniques</div>
+      </div>
+      <div class="stat-box ok">
+        <div class="stat-num">${nOk}</div>
+        <div class="stat-label">Passés</div>
+      </div>
+      <div class="stat-box ${nWarn?'warn':''}">
+        <div class="stat-num">${nWarn}</div>
+        <div class="stat-label">Avertissements</div>
+      </div>
+      <div class="stat-box ${nErr?'err':''}">
+        <div class="stat-num">${nErr}</div>
+        <div class="stat-label">Erreurs</div>
+      </div>
+    </div>
+  `;
+
+  // Distribution bars
+  if (total && countByLevel) {
+    html += `<div class="distrib"><div class="distrib-title">Répartition CEFR</div>`;
+    for (const lvl of ['A1','A2','B1','B2']) {
+      const n   = countByLevel[lvl] || 0;
+      const pct = total ? (n/total*100).toFixed(1) : 0;
+      html += `
+        <div class="bar-row">
+          <div class="bar-meta">
+            <span class="bar-lvl">${lvl}</span>
+            <span class="bar-count">${n.toLocaleString('fr')} mots · ${pct}%</span>
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" data-lvl="${lvl}" style="width:0%" data-pct="${pct}"></div>
+          </div>
+        </div>
+      `;
+    }
+    html += `</div>`;
+  }
+
+  // Checks
+  html += `<div class="checks-title">Détail des vérifications</div>`;
+  checks.forEach((check, i) => {
+    const tag = check.status === 'ok' ? 'OK' : check.status === 'warn' ? 'WARN' : 'ERREUR';
+    const hasDetails = check.details && check.details.length > 0;
+
+    let bodyHtml = '';
+    if (hasDetails) {
+      for (const grp of check.details) {
+        bodyHtml += `<div class="detail-group">`;
+        if (grp.head) bodyHtml += `<div class="detail-head">${escapeHtml(grp.head)}</div>`;
+        for (const line of (grp.lines||[])) {
+          const cls = grp.highlight ? ' highlight' : '';
+          bodyHtml += `<div class="detail-line${cls}">${escapeHtml(line)}</div>`;
+        }
+        bodyHtml += `</div>`;
+      }
+    }
+
+    html += `
+      <div class="check-item ${check.status}" id="chk-${i}">
+        <div class="check-header" onclick="toggleCheck(${i})">
+          <div class="check-dot"></div>
+          <div class="check-label">${escapeHtml(check.label)}</div>
+          <div class="check-tag">${tag}</div>
+          ${hasDetails ? `<div class="check-arrow">▶</div>` : ''}
+        </div>
+        ${hasDetails ? `<div class="check-body">${bodyHtml}</div>` : ''}
+      </div>
+    `;
+  });
+
+  document.getElementById('report').innerHTML = html;
+  document.getElementById('report').style.display = 'block';
+  document.getElementById('reset-btn').style.display = 'inline-block';
+
+  // Animate bars
+  requestAnimationFrame(()=>{
+    setTimeout(()=>{
+      document.querySelectorAll('.bar-fill').forEach(el=>{
+        el.style.width = el.dataset.pct + '%';
+      });
+    }, 100);
+  });
+
+  // Auto-open errors and warnings
+  checks.forEach((c, i) => {
+    if ((c.status === 'err' || c.status === 'warn') && c.details?.length) {
+      document.getElementById(`chk-${i}`)?.classList.add('open');
+    }
+  });
+}
+
+function toggleCheck(i) {
+  document.getElementById(`chk-${i}`)?.classList.toggle('open');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── File handling ──────────────────────────────────────────────────────────
+
+function processFile(file) {
+  if (!file || !file.name.endsWith('.json')) {
+    alert('Veuillez déposer un fichier .json');
+    return;
+  }
+
+  document.getElementById('drop-zone').style.display = 'none';
+  document.getElementById('loader').style.display = 'block';
+  document.getElementById('report').style.display = 'none';
+  document.getElementById('reset-btn').style.display = 'none';
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    setTimeout(() => {
+      document.getElementById('loader').style.display = 'none';
+      try {
+        const data = JSON.parse(e.target.result);
+        const result = validate(data);
+        renderReport(file.name, result);
+      } catch (err) {
+        document.getElementById('report').innerHTML = `
+          <div class="verdict fail">
+            <div class="verdict-icon">✘</div>
+            <div>
+              <div class="verdict-title">JSON invalide</div>
+              <div class="verdict-sub">${escapeHtml(err.message)}</div>
+            </div>
+          </div>
+        `;
+        document.getElementById('report').style.display = 'block';
+        document.getElementById('reset-btn').style.display = 'inline-block';
+      }
+    }, 400);
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+function resetApp() {
+  document.getElementById('drop-zone').style.display = 'block';
+  document.getElementById('report').style.display = 'none';
+  document.getElementById('reset-btn').style.display = 'none';
+  document.getElementById('file-input').value = '';
+}
+
+// ── Events ─────────────────────────────────────────────────────────────────
+
+const zone = document.getElementById('drop-zone');
+
+zone.addEventListener('click', e => {
+  if (e.target.classList.contains('btn-pick')) return;
+  document.getElementById('file-input').click();
+});
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+zone.addEventListener('drop', e => {
+  e.preventDefault();
+  zone.classList.remove('dragover');
+  processFile(e.dataTransfer.files[0]);
+});
+
+document.getElementById('file-input').addEventListener('change', e => {
+  processFile(e.target.files[0]);
+});
+</script>
+</body>
+</html>
