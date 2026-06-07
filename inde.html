@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Fusion JSON</title>
+<style>
+body{
+    font-family:Arial,sans-serif;
+    max-width:900px;
+    margin:40px auto;
+    padding:20px;
+}
+#drop{
+    border:3px dashed #666;
+    border-radius:10px;
+    padding:60px;
+    text-align:center;
+    cursor:pointer;
+}
+#drop.drag{
+    background:#eef7ff;
+}
+button{
+    margin-top:20px;
+    padding:12px 20px;
+}
+pre{
+    margin-top:20px;
+    background:#f5f5f5;
+    padding:15px;
+    max-height:300px;
+    overflow:auto;
+}
+</style>
+</head>
+<body>
+
+<h1>Fusionneur JSON</h1>
+
+<div id="drop">
+    Dépose ton fichier TXT ou JSON ici
+</div>
+
+<p id="stats"></p>
+
+<button id="download" disabled>Télécharger le JSON</button>
+
+<pre id="preview"></pre>
+
+<script>
+
+const drop = document.getElementById("drop");
+const stats = document.getElementById("stats");
+const preview = document.getElementById("preview");
+const download = document.getElementById("download");
+
+let finalData = [];
+
+drop.addEventListener("dragover", e => {
+    e.preventDefault();
+    drop.classList.add("drag");
+});
+
+drop.addEventListener("dragleave", () => {
+    drop.classList.remove("drag");
+});
+
+drop.addEventListener("drop", e => {
+    e.preventDefault();
+    drop.classList.remove("drag");
+
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+        mergeFile(reader.result);
+    };
+
+    reader.readAsText(file, "utf-8");
+});
+
+function mergeFile(text){
+
+    finalData = [];
+
+    try{
+
+        // Cas 1 : JSON déjà valide
+        try{
+            const parsed = JSON.parse(text);
+
+            if(Array.isArray(parsed)){
+                finalData = parsed;
+            }else{
+                finalData = [parsed];
+            }
+        }
+
+        // Cas 2 : Plusieurs tableaux JSON collés
+        catch{
+
+            const arrays = text.match(/\[[\s\S]*?\]/g);
+
+            if(arrays && arrays.length){
+
+                for(const arr of arrays){
+                    try{
+                        const parsed = JSON.parse(arr);
+
+                        if(Array.isArray(parsed)){
+                            finalData.push(...parsed);
+                        }else{
+                            finalData.push(parsed);
+                        }
+
+                    }catch(err){}
+                }
+            }
+            else{
+                throw new Error("Aucun tableau JSON trouvé.");
+            }
+        }
+
+        stats.innerHTML =
+            "<b>Total d'objets :</b> " + finalData.length;
+
+        preview.textContent =
+            JSON.stringify(finalData.slice(0,3), null, 2);
+
+        download.disabled = false;
+
+    }catch(err){
+        alert("Erreur : " + err.message);
+    }
+}
+
+download.addEventListener("click", () => {
+
+    const blob = new Blob(
+        [JSON.stringify(finalData, null, 2)],
+        {type:"application/json"}
+    );
+
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "vocabulaire_complet.json";
+    a.click();
+
+    URL.revokeObjectURL(url);
+});
+
+</script>
+
+</body>
+</html>
