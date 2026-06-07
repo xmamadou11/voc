@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JSON Merger</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --border: #1e1e2e;
+    --accent: #00ffb3;
+    --accent2: #ff6b35;
+    --text: #e8e8f0;
+    --muted: #5a5a7a;
+    --success: #00ffb3;
+    --error: #ff4757;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 24px;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0,255,179,0.07) 0%, transparent 60%),
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255,255,255,0.02) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(255,255,255,0.02) 40px);
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+
+  .logo {
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.3em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    opacity: 0.8;
+  }
+
+  h1 {
+    font-size: clamp(2.2rem, 5vw, 3.5rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    background: linear-gradient(135deg, #fff 30%, var(--accent) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    margin-top: 12px;
+    color: var(--muted);
+    font-size: 0.95rem;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .drop-zone {
+    width: 100%;
+    max-width: 640px;
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 56px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .drop-zone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(0,255,179,0.05) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .drop-zone:hover::before,
+  .drop-zone.dragover::before { opacity: 1; }
+
+  .drop-zone:hover,
+  .drop-zone.dragover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 0 40px rgba(0,255,179,0.12), 0 20px 60px rgba(0,0,0,0.4);
+  }
+
+  .drop-icon {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    display: block;
+    filter: grayscale(0.3);
+  }
+
+  .drop-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .drop-sub {
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .drop-sub span {
+    color: var(--accent);
+  }
+
+  #fileInput { display: none; }
+
+  .stats-bar {
+    width: 100%;
+    max-width: 640px;
+    margin-top: 20px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    display: none;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .stat-label {
+    font-size: 0.7rem;
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+  }
+
+  .stat-value {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .log-box {
+    width: 100%;
+    max-width: 640px;
+    margin-top: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    line-height: 1.8;
+    display: none;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .log-line { color: var(--muted); }
+  .log-line.ok { color: var(--success); }
+  .log-line.err { color: var(--error); }
+  .log-line.info { color: var(--accent2); }
+
+  .preview-box {
+    width: 100%;
+    max-width: 640px;
+    margin-top: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    display: none;
+  }
+
+  .preview-header {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .preview-header span { color: var(--accent); }
+
+  pre {
+    padding: 16px 20px;
+    font-size: 0.73rem;
+    line-height: 1.6;
+    max-height: 200px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #a8b0d0;
+  }
+
+  pre .key { color: #7dd3fc; }
+  pre .str { color: #86efac; }
+  pre .num { color: #fbbf24; }
+  pre .bool { color: #f472b6; }
+  pre .null { color: var(--muted); }
+
+  .download-btn {
+    width: 100%;
+    max-width: 640px;
+    margin-top: 20px;
+    padding: 18px;
+    background: var(--accent);
+    color: #000;
+    font-family: 'Syne', sans-serif;
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: all 0.2s ease;
+  }
+
+  .download-btn:hover {
+    background: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 40px rgba(0,255,179,0.25);
+  }
+
+  .download-btn:active { transform: translateY(0); }
+
+  .reset-btn {
+    margin-top: 12px;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    padding: 8px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: none;
+    transition: all 0.2s;
+  }
+
+  .reset-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  .error-msg {
+    width: 100%;
+    max-width: 640px;
+    margin-top: 16px;
+    padding: 14px 18px;
+    background: rgba(255,71,87,0.1);
+    border: 1px solid rgba(255,71,87,0.3);
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--error);
+    display: none;
+  }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <p class="logo">// tool</p>
+  <h1>JSON Merger</h1>
+  <p class="subtitle">many arrays → one valid JSON</p>
+</header>
+
+<div class="drop-zone" id="dropZone">
+  <input type="file" id="fileInput" accept=".txt,.json">
+  <span class="drop-icon">📂</span>
+  <p class="drop-title">Dépose ton fichier ici</p>
+  <p class="drop-sub">.txt ou .json · <span>clic</span> pour parcourir</p>
+</div>
+
+<div class="stats-bar" id="statsBar">
+  <div class="stat">
+    <span class="stat-label">Blocs trouvés</span>
+    <span class="stat-value" id="statBlocks">0</span>
+  </div>
+  <div class="stat">
+    <span class="stat-label">Total objets</span>
+    <span class="stat-value" id="statObjects">0</span>
+  </div>
+  <div class="stat">
+    <span class="stat-label">Réparés</span>
+    <span class="stat-value" id="statFixed">0</span>
+  </div>
+  <div class="stat">
+    <span class="stat-label">Taille finale</span>
+    <span class="stat-value" id="statSize">0 KB</span>
+  </div>
+</div>
+
+<div class="log-box" id="logBox"></div>
+<div class="error-msg" id="errorMsg"></div>
+
+<div class="preview-box" id="previewBox">
+  <div class="preview-header">
+    Aperçu (20 premiers objets) · <span id="previewCount"></span>
+  </div>
+  <pre id="previewContent"></pre>
+</div>
+
+<button class="download-btn" id="downloadBtn">
+  ⬇ Télécharger merged.json
+</button>
+<button class="reset-btn" id="resetBtn">↺ Recommencer</button>
+
+<script>
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  const statsBar = document.getElementById('statsBar');
+  const logBox = document.getElementById('logBox');
+  const errorMsg = document.getElementById('errorMsg');
+  const previewBox = document.getElementById('previewBox');
+  const previewContent = document.getElementById('previewContent');
+  const previewCount = document.getElementById('previewCount');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  let mergedData = null;
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => {
+    if (e.target.files[0]) processFile(e.target.files[0]);
+  });
+
+  dropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
+  });
+
+  function log(msg, type = '') {
+    logBox.style.display = 'block';
+    const line = document.createElement('div');
+    line.className = 'log-line ' + type;
+    line.textContent = '› ' + msg;
+    logBox.appendChild(line);
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+
+  function processFile(file) {
+    reset(false);
+    log('Fichier reçu : ' + file.name, 'info');
+    log('Taille : ' + (file.size / 1024).toFixed(1) + ' KB', '');
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      const text = e.target.result;
+      log('Lecture terminée, analyse en cours…', '');
+      try {
+        const result = extractAndMerge(text);
+        if (result.error) {
+          showError(result.error);
+          return;
+        }
+        mergedData = result.merged;
+        showResults(result);
+      } catch (err) {
+        showError('Erreur inattendue : ' + err.message);
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+  }
+
+  // ─── Indent helper ───────────────────────────────────────────────────────────
+  function getIndent(line) {
+    return line.length - line.trimStart().length;
+  }
+
+  // ─── Fix trailing commas: ,] or ,} ───────────────────────────────────────────
+  function fixTrailingComma(text) {
+    return text.replace(/,(\s*[\]\}])/g, '$1');
+  }
+
+  // ─── Try to parse a block, with auto-repair ───────────────────────────────────
+  function tryParse(raw) {
+    // Attempt 1: as-is
+    try { return JSON.parse(raw); } catch(_) {}
+
+    // Attempt 2: fix trailing commas
+    const fixed1 = fixTrailingComma(raw);
+    try { return JSON.parse(fixed1); } catch(_) {}
+
+    // Attempt 3: also replace indented ] (2+ spaces) with } (typo in source)
+    const fixed2 = fixed1.replace(/^( {2,})\]$/gm, '$1}');
+    try { return JSON.parse(fixed2); } catch(_) {}
+
+    // Attempt 4: add missing closing ] if the block doesn't end with one
+    const trimmed = fixed2.trimEnd();
+    if (!trimmed.endsWith(']')) {
+      const fixed3 = trimmed + '\n]';
+      try { return JSON.parse(fixed3); } catch(_) {}
+      // Also try without trailing comma then add ]
+      const fixed4 = fixTrailingComma(trimmed) + '\n]';
+      try { return JSON.parse(fixed4); } catch(_) {}
+    }
+
+    return null; // all repairs failed
+  }
+
+  // ─── Main extraction logic ────────────────────────────────────────────────────
+  function extractAndMerge(text) {
+    const lines = text.split('\n');
+    const merged = [];
+    let fixCount = 0;
+
+    // Find all standalone [ and ] lines (the block delimiters)
+    const openLines  = [];  // indices of lines that are exactly "["
+    const closeLines = [];  // indices of lines that are exactly "]" (any indent)
+
+    for (let i = 0; i < lines.length; i++) {
+      const t = lines[i].trim();
+      if (t === '[')  openLines.push(i);
+      if (t === ']')  closeLines.push(i);
+    }
+
+    log('Blocs JSON détectés : ' + openLines.length,
+        openLines.length > 0 ? 'ok' : 'err');
+
+    if (openLines.length === 0) {
+      return { error: 'Aucun tableau JSON (array) détecté dans le fichier.' };
+    }
+
+    // ── Pre-process: fix indented ] that are object-close typos ──────────────
+    //    e.g. "  ]" used instead of "  }" for the last object in a block
+    const fixedLines = lines.slice();
+    for (const ci of closeLines) {
+      if (getIndent(lines[ci]) > 0) {
+        // Replace ] with } for this line (it's inside an object, not an array)
+        fixedLines[ci] = lines[ci].replace(']', '}');
+        fixCount++;
+        log(`Ligne ${ci + 1} : "]" incorrect corrigé en "}"`, 'info');
+      }
+    }
+
+    // Recompute valid (0-indent) close lines after fixes
+    const validCloseLines = closeLines.filter(ci => getIndent(lines[ci]) === 0);
+
+    // ── Build block segments ──────────────────────────────────────────────────
+    //  Strategy: for each open[n], its end is the nearest valid ] AFTER it.
+    //  If no valid ] exists before the NEXT open, we add one (missing close).
+    //  This correctly handles all three bug types found in the source file:
+    //    1. Block missing its closing ] (block 0 and last block)
+    //    2. Indented ] used instead of } (block 48)
+
+    const segments = [];
+    let vcIdx = 0;
+
+    for (let n = 0; n < openLines.length; n++) {
+      const start = openLines[n];
+      const nextOpen = (n + 1 < openLines.length) ? openLines[n + 1] : fixedLines.length;
+
+      // Find nearest valid close after start, before nextOpen
+      while (vcIdx < validCloseLines.length && validCloseLines[vcIdx] <= start) vcIdx++;
+
+      let segLines;
+      let closedProperly = false;
+
+      if (vcIdx < validCloseLines.length && validCloseLines[vcIdx] < nextOpen) {
+        // Normal case: found a matching ]
+        segLines = fixedLines.slice(start, validCloseLines[vcIdx] + 1);
+        vcIdx++; // consume it
+        closedProperly = true;
+      } else {
+        // Missing close: block ends just before next [ (or EOF)
+        // Trim trailing blank lines and add ]
+        let end = nextOpen - 1;
+        while (end > start && fixedLines[end].trim() === '') end--;
+        segLines = fixedLines.slice(start, end + 1);
+        segLines.push(']');
+        fixCount++;
+        log(`Bloc ${n + 1} : "]" de fermeture manquant — ajouté automatiquement`, 'info');
+      }
+
+      segments.push({ n: n + 1, raw: segLines.join('\n'), closedProperly });
+    }
+
+    // ── Parse each segment ────────────────────────────────────────────────────
+    let totalErrors = 0;
+
+    for (const seg of segments) {
+      const parsed = tryParse(seg.raw);
+      if (!parsed) {
+        log(`Bloc ${seg.n} : échec du parsing — ignoré`, 'err');
+        totalErrors++;
+        continue;
+      }
+      if (!Array.isArray(parsed)) {
+        log(`Bloc ${seg.n} : pas un tableau — ignoré`, 'err');
+        totalErrors++;
+        continue;
+      }
+      log(`Bloc ${seg.n} : ${parsed.length} objets fusionnés ✓`, 'ok');
+      merged.push(...parsed);
+    }
+
+    if (merged.length === 0) {
+      return { error: 'Aucun objet valide extrait. Vérifiez le format du fichier.' };
+    }
+
+    return {
+      merged,
+      blockCount: segments.length,
+      validBlocks: segments.length - totalErrors,
+      errorCount: totalErrors,
+      fixCount
+    };
+  }
+
+  function showResults(result) {
+    const jsonStr = JSON.stringify(result.merged, null, 2);
+    const sizeKB = (new Blob([jsonStr]).size / 1024).toFixed(1);
+
+    document.getElementById('statBlocks').textContent = result.validBlocks;
+    document.getElementById('statObjects').textContent = result.merged.length;
+    document.getElementById('statFixed').textContent = result.fixCount;
+    document.getElementById('statSize').textContent = sizeKB + ' KB';
+    statsBar.style.display = 'flex';
+
+    if (result.errorCount > 0) {
+      log(`⚠ ${result.errorCount} bloc(s) ignoré(s) à cause d'erreurs`, 'err');
+    }
+    if (result.fixCount > 0) {
+      log(`🔧 ${result.fixCount} réparation(s) appliquée(s) au fichier source`, 'info');
+    }
+    log(`Fusion terminée : ${result.merged.length} objets au total`, 'ok');
+
+    // Preview (first 20 objects)
+    const preview = result.merged.slice(0, 20);
+    const previewStr = JSON.stringify(preview, null, 2);
+    previewContent.innerHTML = syntaxHighlight(previewStr);
+    previewCount.textContent = result.merged.length + ' objets total';
+    previewBox.style.display = 'block';
+
+    downloadBtn.style.display = 'flex';
+    resetBtn.style.display = 'inline-block';
+  }
+
+  function showError(msg) {
+    errorMsg.textContent = '⚠ ' + msg;
+    errorMsg.style.display = 'block';
+    resetBtn.style.display = 'inline-block';
+    log('Échec : ' + msg, 'err');
+  }
+
+  function syntaxHighlight(json) {
+    return json
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, match => {
+        let cls = 'num';
+        if (/^"/.test(match)) cls = /:$/.test(match) ? 'key' : 'str';
+        else if (/true|false/.test(match)) cls = 'bool';
+        else if (/null/.test(match)) cls = 'null';
+        return `<span class="${cls}">${match}</span>`;
+      });
+  }
+
+  downloadBtn.addEventListener('click', () => {
+    if (!mergedData) return;
+    const jsonStr = JSON.stringify(mergedData, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'merged.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    log('Téléchargement lancé ✓', 'ok');
+  });
+
+  resetBtn.addEventListener('click', () => reset(true));
+
+  function reset(full) {
+    mergedData = null;
+    logBox.innerHTML = '';
+    logBox.style.display = 'none';
+    statsBar.style.display = 'none';
+    previewBox.style.display = 'none';
+    downloadBtn.style.display = 'none';
+    resetBtn.style.display = 'none';
+    errorMsg.style.display = 'none';
+    if (full) fileInput.value = '';
+  }
+</script>
+</body>
+</html>
