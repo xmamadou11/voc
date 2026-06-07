@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JSON Add ID</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --border: #1e1e2e;
+    --accent: #00ffb3;
+    --accent2: #ff6b35;
+    --text: #e8e8f0;
+    --muted: #5a5a7a;
+    --success: #00ffb3;
+    --error: #ff4757;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 24px;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0,255,179,0.07) 0%, transparent 60%),
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255,255,255,0.02) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(255,255,255,0.02) 40px);
+  }
+
+  header { text-align: center; margin-bottom: 48px; }
+
+  .logo {
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.3em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    opacity: 0.8;
+  }
+
+  h1 {
+    font-size: clamp(2.2rem, 5vw, 3.5rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    background: linear-gradient(135deg, #fff 30%, var(--accent) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    margin-top: 12px;
+    color: var(--muted);
+    font-size: 0.95rem;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .drop-zone {
+    width: 100%;
+    max-width: 640px;
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 56px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .drop-zone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(0,255,179,0.05) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .drop-zone:hover::before,
+  .drop-zone.dragover::before { opacity: 1; }
+
+  .drop-zone:hover,
+  .drop-zone.dragover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 0 40px rgba(0,255,179,0.12), 0 20px 60px rgba(0,0,0,0.4);
+  }
+
+  .drop-icon { font-size: 3rem; margin-bottom: 16px; display: block; }
+  .drop-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+  .drop-sub { font-size: 0.82rem; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+  .drop-sub span { color: var(--accent); }
+
+  #fileInput { display: none; }
+
+  .stats-bar {
+    width: 100%;
+    max-width: 640px;
+    margin-top: 20px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    display: none;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .stat { display: flex; flex-direction: column; gap: 4px; }
+
+  .stat-label {
+    font-size: 0.7rem;
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+  }
+
+  .stat-value {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .log-box {
+    width: 100%;
+    max-width: 640px;
+    margin-top: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    line-height: 1.8;
+    display: none;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .log-line { color: var(--muted); }
+  .log-line.ok  { color: var(--success); }
+  .log-line.err { color: var(--error); }
+  .log-line.info { color: var(--accent2); }
+
+  .preview-box {
+    width: 100%;
+    max-width: 640px;
+    margin-top: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    display: none;
+  }
+
+  .preview-header {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .preview-header span { color: var(--accent); }
+
+  pre {
+    padding: 16px 20px;
+    font-size: 0.73rem;
+    line-height: 1.6;
+    max-height: 220px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #a8b0d0;
+  }
+
+  pre .key  { color: #7dd3fc; }
+  pre .str  { color: #86efac; }
+  pre .num  { color: #fbbf24; }
+  pre .bool { color: #f472b6; }
+  pre .null { color: var(--muted); }
+
+  .download-btn {
+    width: 100%;
+    max-width: 640px;
+    margin-top: 20px;
+    padding: 18px;
+    background: var(--accent);
+    color: #000;
+    font-family: 'Syne', sans-serif;
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: all 0.2s ease;
+  }
+
+  .download-btn:hover {
+    background: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 40px rgba(0,255,179,0.25);
+  }
+
+  .reset-btn {
+    margin-top: 12px;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    padding: 8px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: none;
+    transition: all 0.2s;
+  }
+
+  .reset-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  .error-msg {
+    width: 100%;
+    max-width: 640px;
+    margin-top: 16px;
+    padding: 14px 18px;
+    background: rgba(255,71,87,0.1);
+    border: 1px solid rgba(255,71,87,0.3);
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--error);
+    display: none;
+  }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <p class="logo">// tool</p>
+  <h1>JSON Add ID</h1>
+  <p class="subtitle">ajoute un id séquentiel à chaque objet</p>
+</header>
+
+<div class="drop-zone" id="dropZone">
+  <input type="file" id="fileInput" accept=".json">
+  <span class="drop-icon">📂</span>
+  <p class="drop-title">Dépose ton fichier ici</p>
+  <p class="drop-sub">.json · <span>clic</span> pour parcourir</p>
+</div>
+
+<div class="stats-bar" id="statsBar">
+  <div class="stat">
+    <span class="stat-label">Objets traités</span>
+    <span class="stat-value" id="statObjects">0</span>
+  </div>
+  <div class="stat">
+    <span class="stat-label">ID de début</span>
+    <span class="stat-value" id="statStart">1</span>
+  </div>
+  <div class="stat">
+    <span class="stat-label">ID de fin</span>
+    <span class="stat-value" id="statEnd">0</span>
+  </div>
+  <div class="stat">
+    <span class="stat-label">Taille finale</span>
+    <span class="stat-value" id="statSize">0 KB</span>
+  </div>
+</div>
+
+<div class="log-box" id="logBox"></div>
+<div class="error-msg" id="errorMsg"></div>
+
+<div class="preview-box" id="previewBox">
+  <div class="preview-header">
+    Aperçu (3 premiers objets) · <span id="previewCount"></span>
+  </div>
+  <pre id="previewContent"></pre>
+</div>
+
+<button class="download-btn" id="downloadBtn">
+  ⬇ Télécharger json-with-id.json
+</button>
+<button class="reset-btn" id="resetBtn">↺ Recommencer</button>
+
+<script>
+  const dropZone      = document.getElementById('dropZone');
+  const fileInput     = document.getElementById('fileInput');
+  const statsBar      = document.getElementById('statsBar');
+  const logBox        = document.getElementById('logBox');
+  const errorMsg      = document.getElementById('errorMsg');
+  const previewBox    = document.getElementById('previewBox');
+  const previewContent = document.getElementById('previewContent');
+  const previewCount  = document.getElementById('previewCount');
+  const downloadBtn   = document.getElementById('downloadBtn');
+  const resetBtn      = document.getElementById('resetBtn');
+
+  let outputData = null;
+
+  // ── Drop / click ────────────────────────────────────────────────────────────
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => { if (e.target.files[0]) processFile(e.target.files[0]); });
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
+  });
+
+  function log(msg, type = '') {
+    logBox.style.display = 'block';
+    const line = document.createElement('div');
+    line.className = 'log-line ' + type;
+    line.textContent = '› ' + msg;
+    logBox.appendChild(line);
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+
+  // ── Main ────────────────────────────────────────────────────────────────────
+  function processFile(file) {
+    reset(false);
+    log('Fichier reçu : ' + file.name, 'info');
+    log('Taille : ' + (file.size / 1024).toFixed(1) + ' KB', '');
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        log('Parsing JSON…', '');
+        const data = JSON.parse(e.target.result);
+
+        if (!Array.isArray(data)) {
+          showError('Le fichier JSON doit contenir un tableau à la racine.');
+          return;
+        }
+
+        log(`${data.length} objets trouvés`, 'ok');
+        log('Ajout des id séquentiels…', '');
+
+        // ── Python logic, translated to JS ──────────────────────────────────
+        // Equivalent of:
+        //   for i, obj in enumerate(data, start=1):
+        //       obj_with_id = {"id": i, **obj}
+        const result = data.map((obj, i) => {
+          return { id: i + 1, ...obj };
+        });
+        // ────────────────────────────────────────────────────────────────────
+
+        outputData = result;
+        showResults(result);
+
+      } catch (err) {
+        showError('Erreur de parsing JSON : ' + err.message);
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+  }
+
+  function showResults(result) {
+    const jsonStr = JSON.stringify(result, null, 2);
+    const sizeKB  = (new Blob([jsonStr]).size / 1024).toFixed(1);
+
+    document.getElementById('statObjects').textContent = result.length;
+    document.getElementById('statStart').textContent   = result[0].id;
+    document.getElementById('statEnd').textContent     = result[result.length - 1].id;
+    document.getElementById('statSize').textContent    = sizeKB + ' KB';
+    statsBar.style.display = 'flex';
+
+    log(`id ajoutés : 1 → ${result.length}`, 'ok');
+    log('Prêt à télécharger ✓', 'ok');
+
+    // Preview : 3 premiers objets
+    const preview    = result.slice(0, 3);
+    const previewStr = JSON.stringify(preview, null, 2);
+    previewContent.innerHTML = syntaxHighlight(previewStr);
+    previewCount.textContent = result.length + ' objets au total';
+    previewBox.style.display = 'block';
+
+    downloadBtn.style.display = 'flex';
+    resetBtn.style.display    = 'inline-block';
+  }
+
+  function showError(msg) {
+    errorMsg.textContent      = '⚠ ' + msg;
+    errorMsg.style.display    = 'block';
+    resetBtn.style.display    = 'inline-block';
+    log('Échec : ' + msg, 'err');
+  }
+
+  function syntaxHighlight(json) {
+    return json
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, match => {
+        let cls = 'num';
+        if (/^"/.test(match)) cls = /:$/.test(match) ? 'key' : 'str';
+        else if (/true|false/.test(match)) cls = 'bool';
+        else if (/null/.test(match)) cls = 'null';
+        return `<span class="${cls}">${match}</span>`;
+      });
+  }
+
+  downloadBtn.addEventListener('click', () => {
+    if (!outputData) return;
+    const jsonStr = JSON.stringify(outputData, null, 2);
+    const blob    = new Blob([jsonStr], { type: 'application/json' });
+    const url     = URL.createObjectURL(blob);
+    const a       = document.createElement('a');
+    a.href        = url;
+    a.download    = 'json-with-id.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    log('Téléchargement lancé ✓', 'ok');
+  });
+
+  resetBtn.addEventListener('click', () => reset(true));
+
+  function reset(full) {
+    outputData = null;
+    logBox.innerHTML        = '';
+    logBox.style.display    = 'none';
+    statsBar.style.display  = 'none';
+    previewBox.style.display = 'none';
+    downloadBtn.style.display = 'none';
+    resetBtn.style.display  = 'none';
+    errorMsg.style.display  = 'none';
+    if (full) fileInput.value = '';
+  }
+</script>
+</body>
+</html>
