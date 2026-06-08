@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phonetic Enricher</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;1,9..144,300&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f0e8; --surface: #fff; --border: #ddd8cc;
+    --accent: #c94f2a; --accent2: #2a6cc9;
+    --text: #1a1a18; --muted: #999990;
+    --success: #2a9c5a; --warn: #c97a2a;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Mono', monospace;
+    min-height: 100vh; padding: 2.5rem 1.5rem; display: flex; flex-direction: column; align-items: center; }
+  header { text-align: center; margin-bottom: 2.5rem; animation: fadeDown 0.5s ease both; }
+  header h1 { font-family: 'Fraunces', serif; font-size: clamp(2rem,5vw,3rem); font-weight: 700; letter-spacing: -0.02em; }
+  header h1 em { color: var(--accent); font-style: italic; }
+  header p { color: var(--muted); font-size: 0.75rem; margin-top: 0.4rem; letter-spacing: 0.08em; text-transform: uppercase; }
+
+  .card { width: 100%; max-width: 640px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.8rem; margin-bottom: 1rem; animation: fadeUp 0.5s ease both; }
+  .card-title { font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 1rem; }
+
+  /* Dict loader banner */
+  .dict-banner { border-radius: 10px; padding: 1rem 1.2rem; font-size: 0.72rem; line-height: 1.8;
+    display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+  .dict-banner.loading { background: rgba(42,108,201,0.08); border: 1px solid rgba(42,108,201,0.25); color: var(--accent2); }
+  .dict-banner.ready   { background: rgba(42,156,90,0.08);  border: 1px solid rgba(42,156,90,0.25);  color: var(--success); }
+  .dict-banner.error   { background: rgba(201,79,42,0.08);  border: 1px solid rgba(201,79,42,0.25);  color: var(--accent); }
+  .dict-banner .icon { font-size: 1.4rem; flex-shrink: 0; }
+  .dict-progress { height: 4px; background: rgba(42,108,201,0.2); border-radius: 99px; margin-top: 0.4rem; }
+  .dict-progress-fill { height: 100%; background: var(--accent2); border-radius: 99px; width: 0%; transition: width 0.3s; }
+
+  /* Drop zone */
+  .drop-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 2.5rem; text-align: center;
+    cursor: pointer; transition: border-color 0.2s, background 0.2s; position: relative; }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: rgba(201,79,42,0.04); }
+  .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .drop-zone .icon { font-size: 2rem; display: block; margin-bottom: 0.6rem; }
+  .drop-zone p { color: var(--muted); font-size: 0.78rem; line-height: 1.6; }
+  .drop-zone strong { color: var(--accent); }
+  .drop-zone.disabled { opacity: 0.5; pointer-events: none; }
+
+  .file-info { background: var(--bg); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.75rem;
+    display: none; gap: 1.5rem; flex-wrap: wrap; margin-top: 1rem; }
+  .file-info.visible { display: flex; }
+  .fi-item { display: flex; flex-direction: column; gap: 0.15rem; }
+  .fi-val { font-size: 1rem; font-family: 'Fraunces', serif; color: var(--accent2); }
+  .fi-lbl { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  /* Config */
+  .config-row { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; margin-bottom: 0.8rem; }
+  .config-row label { color: var(--muted); font-size: 0.72rem; letter-spacing: 0.06em; }
+  .config-row select { font-family: 'DM Mono', monospace; font-size: 0.85rem; background: var(--bg);
+    border: 1px solid var(--border); color: var(--text); padding: 0.35rem 0.5rem; border-radius: 6px; outline: none; }
+  .config-row select:focus { border-color: var(--accent); }
+
+  .strategy-box { background: var(--bg); border-radius: 8px; padding: 0.9rem 1rem; font-size: 0.7rem;
+    line-height: 1.9; color: var(--muted); border-left: 3px solid var(--accent2); margin-bottom: 1rem; }
+  .strategy-box b { color: var(--text); }
+
+  /* Progress */
+  .progress-track { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; margin-bottom: 0.6rem; }
+  .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.2s ease; border-radius: 99px; }
+  .progress-meta { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--muted); margin-bottom: 0.8rem; }
+  .mini-stats { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+  .ms { display: flex; flex-direction: column; gap: 0.1rem; }
+  .ms-val { font-size: 0.95rem; font-family: 'Fraunces', serif; }
+  .ms-val.g { color: var(--success); } .ms-val.o { color: var(--warn); } .ms-val.r { color: var(--accent); }
+
+  .ms-lbl { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
+
+  /* Result */
+  .result-stats { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  .rs { display: flex; flex-direction: column; gap: 0.15rem; }
+  .rs-val { font-size: 1.1rem; font-family: 'Fraunces', serif; }
+  .rs-val.green { color: var(--success); } .rs-val.orange { color: var(--warn); }
+  .rs-val.red { color: var(--accent); } .rs-val.blue { color: var(--accent2); }
+  .rs-lbl { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .preview-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); margin-top: 0.5rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.7rem; }
+  th { background: var(--bg); padding: 0.5rem 0.7rem; text-align: left; color: var(--muted);
+    letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.62rem; border-bottom: 1px solid var(--border); }
+  td { padding: 0.45rem 0.7rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:nth-child(even) td { background: rgba(0,0,0,0.015); }
+  .ipa { color: var(--accent2); font-style: italic; }
+  .ipa-fb { color: var(--warn); font-style: italic; }
+  .tag-fb { font-size: 0.58rem; background: rgba(201,122,42,0.15); color: var(--warn);
+    border-radius: 4px; padding: 0.1rem 0.3rem; margin-left: 0.3rem; vertical-align: middle; }
+  .missing { color: #ccc; }
+
+  /* Buttons */
+  .btn { font-family: 'DM Mono', monospace; font-size: 0.78rem; letter-spacing: 0.06em;
+    padding: 0.7rem 1.5rem; border-radius: 8px; cursor: pointer; border: none; transition: opacity 0.15s, transform 0.1s; }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn:not(:disabled):hover { opacity: 0.85; transform: scale(0.98); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-success { background: var(--success); color: #fff; }
+  .btn-row { display: flex; gap: 0.7rem; flex-wrap: wrap; margin-top: 1rem; }
+
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor;
+    border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes fadeDown { from { opacity:0; transform: translateY(-14px); } to { opacity:1; transform: none; } }
+  @keyframes fadeUp   { from { opacity:0; transform: translateY(10px);  } to { opacity:1; transform: none; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Phonetic <em>Enricher</em></h1>
+  <p>Dictionnaire IPA local · 170 000 entrées · Instantané</p>
+</header>
+
+<!-- Dict loader -->
+<div class="card" style="animation-delay:0s">
+  <div class="card-title">① Chargement du dictionnaire IPA</div>
+  <div class="dict-banner loading" id="dictBanner">
+    <span class="icon">📖</span>
+    <div style="flex:1">
+      <div><span class="spinner"></span>Téléchargement du dictionnaire IPA anglais (170 000 mots)…</div>
+      <div class="dict-progress"><div class="dict-progress-fill" id="dictFill"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Step 2: Load file -->
+<div class="card" style="animation-delay:0.05s">
+  <div class="card-title">② Charger votre fichier JSON</div>
+  <div class="drop-zone disabled" id="dropZone">
+    <input type="file" id="fileInput" accept=".json" disabled>
+    <span class="icon">📂</span>
+    <p><strong>Glissez votre fichier JSON</strong> ici<br>ou cliquez pour choisir</p>
+  </div>
+  <div class="file-info" id="fileInfo">
+    <div class="fi-item"><span class="fi-val" id="fiWords">—</span><span class="fi-lbl">Mots</span></div>
+    <div class="fi-item"><span class="fi-val" id="fiFile">—</span><span class="fi-lbl">Fichier</span></div>
+    <div class="fi-item"><span class="fi-val" id="fiKeys">—</span><span class="fi-lbl">Champs</span></div>
+  </div>
+</div>
+
+<!-- Step 3: Config + Run -->
+<div class="card" style="animation-delay:0.1s">
+  <div class="card-title">③ Options &amp; traitement</div>
+
+  <div class="strategy-box">
+    <b>Stratégie (100% local, aucun appel réseau) :</b><br>
+    <b>1.</b> Recherche exacte dans le dico IPA (170k entrées)<br>
+    <b>2.</b> Lemme déduit : <i>running→run, amazing→amaze, called→call…</i><br>
+    <b>3.</b> Variante doublon : <i>beginning→begin, stopped→stop…</i><br>
+    <b>4.</b> Racine -ly/-ness/-er simplifiée<br>
+    <b>5.</b> Variante US/UK si disponible
+  </div>
+
+  <div class="config-row">
+    <label>SI INTROUVABLE</label>
+    <select id="fallback">
+      <option value="null">null</option>
+      <option value="empty">"" (vide)</option>
+      <option value="skip">Omettre le champ</option>
+    </select>
+  </div>
+
+  <div class="btn-row" style="margin-top:0.5rem">
+    <button class="btn btn-primary" id="btnRun" onclick="runEnrichment()" disabled>▶ ENRICHIR</button>
+  </div>
+</div>
+
+<!-- Result -->
+<div class="card" id="resultCard" style="display:none">
+  <div class="card-title">④ Résultat</div>
+  <div class="result-stats">
+    <div class="rs"><span class="rs-val green" id="rsExact">0</span><span class="rs-lbl">Exact</span></div>
+    <div class="rs"><span class="rs-val orange" id="rsFallback">0</span><span class="rs-lbl">Fallback</span></div>
+    <div class="rs"><span class="rs-val red" id="rsMissing">0</span><span class="rs-lbl">Manquant</span></div>
+    <div class="rs"><span class="rs-val blue" id="rsPct">—</span><span class="rs-lbl">Couverture</span></div>
+  </div>
+  <div class="mini-stats" id="miniStats" style="margin-bottom:1rem"></div>
+  <div class="card-title">Aperçu (20 premiers)</div>
+  <div class="preview-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Word</th><th>Phonetic</th><th>Lvl</th></tr></thead>
+      <tbody id="previewBody"></tbody>
+    </table>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-success" onclick="downloadResult()">⬇ TÉLÉCHARGER JSON ENRICHI</button>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────
+let ipaDict = null;          // Map: word → "/ipa/"
+let rawData = [];
+let enrichedData = [];
+let fileName = 'dictionary';
+
+// ── Load IPA Dictionary ────────────────────────────────────────
+// ipa-dict en_US from jsDelivr: tab-separated "word\t/ipa1/, /ipa2/"
+const IPA_URL = 'https://cdn.jsdelivr.net/npm/ipa-dict@1.0.3/data/en_US.txt';
+
+async function loadIpaDict() {
+  const banner = document.getElementById('dictBanner');
+  const fill = document.getElementById('dictFill');
+  try {
+    const res = await fetch(IPA_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const reader = res.body.getReader();
+    const total = parseInt(res.headers.get('content-length') || '0');
+    let received = 0;
+    const chunks = [];
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.length;
+      if (total > 0) fill.style.width = Math.round(received / total * 100) + '%';
+    }
+
+    fill.style.width = '100%';
+    const text = new TextDecoder().decode(
+      chunks.reduce((a, b) => { const c = new Uint8Array(a.length + b.length); c.set(a); c.set(b, a.length); return c; }, new Uint8Array(0))
+    );
+
+    // Parse: each line = "word\t/ipa1/, /ipa2/"
+    ipaDict = new Map();
+    for (const line of text.split('\n')) {
+      const tab = line.indexOf('\t');
+      if (tab < 0) continue;
+      const word = line.slice(0, tab).trim().toLowerCase();
+      const ipas = line.slice(tab + 1).trim();
+      // Take first IPA entry
+      const first = ipas.split(',')[0].trim();
+      if (word && first) ipaDict.set(word, first);
+    }
+
+    banner.className = 'dict-banner ready';
+    banner.innerHTML = `<span class="icon">✅</span><div>${ipaDict.size.toLocaleString('fr')} entrées chargées — prêt !</div>`;
+
+    // Enable file input
+    document.getElementById('dropZone').classList.remove('disabled');
+    document.getElementById('fileInput').disabled = false;
+    checkReady();
+
+  } catch (err) {
+    banner.className = 'dict-banner error';
+    banner.innerHTML = `<span class="icon">❌</span><div>Erreur de chargement : ${err.message}<br><small>Vérifiez votre connexion internet et rechargez la page.</small></div>`;
+  }
+}
+
+// ── File loading ───────────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+document.getElementById('fileInput').addEventListener('change', e => loadFile(e.target.files[0]));
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); loadFile(e.dataTransfer.files[0]); });
+
+function loadFile(file) {
+  if (!file || dropZone.classList.contains('disabled')) return;
+  fileName = file.name.replace(/\.json$/i, '');
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      rawData = JSON.parse(e.target.result);
+      if (!Array.isArray(rawData)) rawData = Object.values(rawData);
+      document.getElementById('fiWords').textContent = rawData.length.toLocaleString('fr');
+      document.getElementById('fiFile').textContent = file.name.length > 20 ? file.name.slice(0,20)+'…' : file.name;
+      document.getElementById('fiKeys').textContent = Object.keys(rawData[0]).join(', ');
+      document.getElementById('fileInfo').classList.add('visible');
+      checkReady();
+    } catch(err) { alert('JSON invalide : ' + err.message); }
+  };
+  reader.readAsText(file);
+}
+
+function checkReady() {
+  document.getElementById('btnRun').disabled = !(ipaDict && rawData.length > 0);
+}
+
+// ── Lemmatizer ────────────────────────────────────────────────
+function getCandidates(word) {
+  const w = word.toLowerCase().trim();
+  const cands = [];
+  const add = (c) => { if (c && c.length > 1 && c !== w && !cands.includes(c)) cands.push(c); };
+
+  // -ing: amazing→amaze, running→run, annoying→annoy
+  if (w.endsWith('ing') && w.length > 5) {
+    const s = w.slice(0, -3);
+    add(s + 'e');    // amaz+e
+    add(s);          // annoy, accord
+    // double consonant: running→run, beginning→begin
+    if (s.length > 2 && s.slice(-1) === s.slice(-2,-1)) add(s.slice(0,-1));
+  }
+  // -ed: called→call, amazed→amaze, confused→confuse
+  if (w.endsWith('ed') && w.length > 4) {
+    const s = w.slice(0, -2);
+    add(s);
+    add(s + 'e');
+    add(w.slice(0, -1));  // confused → confuse (remove d only)
+    if (s.length > 2 && s.slice(-1) === s.slice(-2,-1)) add(s.slice(0,-1)); // stopped→stop
+  }
+  // -ly: quickly→quick, absolutely→absolute, heavily→heavy
+  if (w.endsWith('ily') && w.length > 5) { add(w.slice(0,-3) + 'y'); }
+  else if (w.endsWith('ally') && w.length > 6) { add(w.slice(0,-4)); add(w.slice(0,-2)); }
+  else if (w.endsWith('ly') && w.length > 5) { add(w.slice(0,-2)); }
+
+  // -ness: kindness→kind, happiness→happy
+  if (w.endsWith('iness') && w.length > 7) add(w.slice(0,-5) + 'y');
+  else if (w.endsWith('ness') && w.length > 6) add(w.slice(0,-4));
+
+  // -ment: government→govern, achievement→achieve
+  if (w.endsWith('ment') && w.length > 6) add(w.slice(0,-4));
+
+  // -tion/-sion: pollution→pollute, expression→express
+  if (w.endsWith('ation') && w.length > 7) { add(w.slice(0,-5)); add(w.slice(0,-5)+'e'); }
+  else if (w.endsWith('tion') && w.length > 6) add(w.slice(0,-4));
+  else if (w.endsWith('sion') && w.length > 6) add(w.slice(0,-4));
+
+  // -er/-or comparative or agent: bigger→big, teacher→teach
+  if (w.endsWith('er') && w.length > 4) {
+    const s = w.slice(0,-2);
+    add(s); add(s+'e');
+    if (s.length > 2 && s.slice(-1) === s.slice(-2,-1)) add(s.slice(0,-1));
+  }
+  // -est: biggest→big
+  if (w.endsWith('est') && w.length > 5) {
+    const s = w.slice(0,-3);
+    add(s); add(s+'e');
+    if (s.length > 2 && s.slice(-1) === s.slice(-2,-1)) add(s.slice(0,-1));
+  }
+  // -ful: beautiful→beauty, helpful→help
+  if (w.endsWith('iful') && w.length > 6) add(w.slice(0,-4) + 'y');
+  else if (w.endsWith('ful') && w.length > 5) add(w.slice(0,-3));
+
+  // -less: homeless→home, careless→care
+  if (w.endsWith('less') && w.length > 6) add(w.slice(0,-4));
+
+  // -able/-ible: acceptable→accept, possible→(keep)
+  if (w.endsWith('able') && w.length > 6) { add(w.slice(0,-4)); add(w.slice(0,-4)+'e'); }
+  else if (w.endsWith('ible') && w.length > 6) add(w.slice(0,-4));
+
+  // -s plurals / 3rd person: runs→run, boxes→box, cities→city
+  if (w.endsWith('ies') && w.length > 4) add(w.slice(0,-3)+'y');
+  else if (w.endsWith('es') && w.length > 3) add(w.slice(0,-2));
+  else if (w.endsWith('s') && !w.endsWith('ss') && w.length > 3) add(w.slice(0,-1));
+
+  // -al: musical→music, national→nation
+  if (w.endsWith('al') && w.length > 5) add(w.slice(0,-2));
+
+  // -ous: famous→fame, nervous→nerve
+  if (w.endsWith('ous') && w.length > 5) { add(w.slice(0,-3)); add(w.slice(0,-3)+'e'); }
+
+  // -ive: active→act, creative→create
+  if (w.endsWith('ive') && w.length > 5) { add(w.slice(0,-3)); add(w.slice(0,-3)+'e'); }
+
+  // -ize/-ise: realize→real, organize→organ
+  if ((w.endsWith('ize') || w.endsWith('ise')) && w.length > 5) add(w.slice(0,-3));
+
+  return cands;
+}
+
+// ── Lookup ─────────────────────────────────────────────────────
+function lookupIPA(word) {
+  const w = word.toLowerCase().trim();
+
+  // 1. Exact
+  if (ipaDict.has(w)) return { ipa: ipaDict.get(w), via: 'exact' };
+
+  // 2. Lemma candidates
+  for (const cand of getCandidates(w)) {
+    if (ipaDict.has(cand)) return { ipa: ipaDict.get(cand), via: `~${cand}` };
+  }
+
+  return { ipa: null, via: null };
+}
+
+// ── Enrichment ─────────────────────────────────────────────────
+function runEnrichment() {
+  if (!ipaDict || rawData.length === 0) return;
+  document.getElementById('btnRun').disabled = true;
+
+  const fallbackMode = document.getElementById('fallback').value;
+  let exact = 0, fallback = 0, missing = 0;
+  enrichedData = [];
+
+  for (const item of rawData) {
+    const entry = { ...item };
+    const { ipa, via } = lookupIPA(item.word || '');
+
+    if (ipa) {
+      entry.phonetic = ipa;
+      entry._via = via;
+      if (via === 'exact') exact++;
+      else fallback++;
+    } else {
+      missing++;
+      entry._via = 'missing';
+      if (fallbackMode === 'null')  entry.phonetic = null;
+      else if (fallbackMode === 'empty') entry.phonetic = '';
+      // skip: don't add
+    }
+    enrichedData.push(entry);
+  }
+
+  showResult(exact, fallback, missing);
+  document.getElementById('btnRun').disabled = false;
+}
+
+// ── Result ─────────────────────────────────────────────────────
+function showResult(exact, fallback, missing) {
+  const total = rawData.length;
+  const covered = exact + fallback;
+  const pct = Math.round(covered / total * 100);
+
+  document.getElementById('rsExact').textContent = exact.toLocaleString('fr');
+  document.getElementById('rsFallback').textContent = fallback.toLocaleString('fr');
+  document.getElementById('rsMissing').textContent = missing.toLocaleString('fr');
+  document.getElementById('rsPct').textContent = pct + '%';
+
+  // Preview
+  const tbody = document.getElementById('previewBody');
+  tbody.innerHTML = '';
+  enrichedData.slice(0, 20).forEach(item => {
+    const isFb = item._via && item._via !== 'exact' && item._via !== 'missing';
+    const isMiss = item._via === 'missing';
+    let ph = '<span class="missing">—</span>';
+    if (item.phonetic) {
+      ph = isFb
+        ? `<span class="ipa-fb">${item.phonetic}</span><span class="tag-fb">${item._via}</span>`
+        : `<span class="ipa">${item.phonetic}</span>`;
+    }
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${item.id??'—'}</td><td>${item.word??'—'}</td><td>${ph}</td><td>${item.level??'—'}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('resultCard').style.display = 'block';
+  document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ── Download ───────────────────────────────────────────────────
+function downloadResult() {
+  const clean = enrichedData.map(({ _via, ...rest }) => rest);
+  const blob = new Blob([JSON.stringify(clean, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${fileName}_phonetic.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ── Boot ───────────────────────────────────────────────────────
+loadIpaDict();
+</script>
+</body>
+</html>
