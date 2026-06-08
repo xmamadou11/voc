@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Phonetic Enricher Pro</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+body{font-family:Arial,sans-serif;max-width:1000px;margin:auto;padding:20px}
+.box{border:1px solid #ddd;padding:15px;border-radius:10px;margin-bottom:15px}
+.progress{height:24px;background:#eee;border-radius:20px;overflow:hidden}
+.bar{height:100%;width:0;background:#4caf50;transition:width .2s}
+#log{height:250px;overflow:auto;border:1px solid #ddd;padding:10px;font-size:12px;white-space:pre-wrap}
+button{padding:10px 15px}
+</style>
+</head>
+<body>
+<h1>Phonetic Enricher Pro</h1>
+
+<div class="box">
+<input type="file" id="fileInput" accept=".json" multiple>
+</div>
+
+<div class="box">
+<label>Délai (ms)</label>
+<input type="number" id="delay" value="25" min="0">
+<button id="startBtn">Lancer</button>
+</div>
+
+<div class="box">
+<div class="progress"><div class="bar" id="bar"></div></div>
+<p id="status">Prêt</p>
+</div>
+
+<div class="box"><div id="log"></div></div>
+
+<script>
+let allFiles=[];
+let cache={};
+let running=false;
+
+const API_URL="https://dictionary-api-7hmy.onrender.com/define?word=";
+
+function log(msg){
+ const el=document.getElementById("log");
+ el.append(document.createTextNode(msg+"\n"));
+ el.scrollTop=el.scrollHeight;
+}
+
+document.getElementById("fileInput").addEventListener("change", async e=>{
+ allFiles=[];
+
+ for(const file of e.target.files){
+   try{
+     const txt=await file.text();
+     const data=JSON.parse(txt);
+
+     if(!Array.isArray(data)){
+       log("❌ "+file.name+" ignoré : JSON non tableau");
+       continue;
+     }
+
+     allFiles.push({name:file.name,data});
+   }catch(err){
+     log("❌ Erreur JSON : "+file.name);
+   }
+ }
+
+ log("✅ Fichiers valides : "+allFiles.length);
+});
+
+async function fetchIPA(word){
+ if(!word) return null;
+
+ const key=String(word).toLowerCase().trim();
+
+ if(key in cache) return cache[key];
+
+ try{
+   const controller=new AbortController();
+   const timeout=setTimeout(()=>controller.abort(),10000);
+
+   const r=await fetch(API_URL+encodeURIComponent(word),{
+     signal:controller.signal
+   });
+
+   clearTimeout(timeout);
+
+   if(!r.ok){
+     cache[key]=null;
+     return null;
+   }
+
+   const d=await r.json();
+
+   let ipa=null;
+
+   if(Array.isArray(d?.phonetics)){
+     ipa=d.phonetics.find(x=>x?.text)?.text || null;
+   }
+
+   cache[key]=ipa;
+   return ipa;
+
+ }catch(e){
+   cache[key]=null;
+   return null;
+ }
+}
+
+function rebuild(item,ipa){
+ return {
+   ...item,
+   phonetic: ipa
+ };
+}
+
+async function startEnrichment(){
+
+ if(running) return;
+
+ if(!allFiles.length){
+   alert("Charge au moins un fichier JSON valide.");
+   return;
+ }
+
+ running=true;
+ document.getElementById("startBtn").disabled=true;
+
+ try{
+
+   let total=allFiles.reduce((s,f)=>s+f.data.length,0);
+   let done=0;
+
+   const delay=Math.max(0,parseInt(document.getElementById("delay").value)||0);
+
+   const zip=new JSZip();
+
+   for(const file of allFiles){
+
+     const enriched=[];
+
+     for(const item of file.data){
+
+       const ipa=await fetchIPA(item.word || "");
+       enriched.push(rebuild(item,ipa));
+
+       done++;
+
+       const pct=Math.round(done*100/total);
+       document.getElementById("bar").style.width=pct+"%";
+       document.getElementById("status").textContent=`${done} / ${total} (${pct}%)`;
+
+       if(done % 100 === 0){
+         log(`Traités : ${done}/${total}`);
+       }
+
+       if(delay){
+         await new Promise(r=>setTimeout(r,delay));
+       }
+     }
+
+     zip.file(file.name, JSON.stringify(enriched,null,2));
+   }
+
+   const blob=await zip.generateAsync({type:"blob"});
+
+   const url=URL.createObjectURL(blob);
+
+   const a=document.createElement("a");
+   a.href=url;
+   a.download="dictionary_all_phonetics.zip";
+   document.body.appendChild(a);
+   a.click();
+   a.remove();
+
+   setTimeout(()=>URL.revokeObjectURL(url),5000);
+
+   log("✅ ZIP généré avec succès");
+
+ }catch(err){
+   console.error(err);
+   log("❌ Erreur : "+err.message);
+ }finally{
+   running=false;
+   document.getElementById("startBtn").disabled=false;
+ }
+}
+
+document.getElementById("startBtn").addEventListener("click",startEnrichment);
+</script>
+</body>
+</html>
