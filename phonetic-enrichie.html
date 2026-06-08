@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phonetic Enricher</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;1,9..144,300&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f0e8; --surface: #fff; --border: #ddd8cc;
+    --accent: #c94f2a; --accent2: #2a6cc9;
+    --text: #1a1a18; --muted: #999990;
+    --success: #2a9c5a; --warn: #c97a2a;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Mono', monospace;
+    min-height: 100vh; padding: 2.5rem 1.5rem; display: flex; flex-direction: column; align-items: center; }
+  header { text-align: center; margin-bottom: 2.5rem; animation: fadeDown 0.5s ease both; }
+  header h1 { font-family: 'Fraunces', serif; font-size: clamp(2rem,5vw,3rem); font-weight: 700; letter-spacing: -0.02em; }
+  header h1 em { color: var(--accent); font-style: italic; }
+  header p { color: var(--muted); font-size: 0.75rem; margin-top: 0.4rem; letter-spacing: 0.08em; text-transform: uppercase; }
+  .card { width: 100%; max-width: 640px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.8rem; margin-bottom: 1rem; animation: fadeUp 0.5s ease both; }
+  .card-title { font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 1rem; }
+  .drop-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 2.5rem; text-align: center;
+    cursor: pointer; transition: border-color 0.2s, background 0.2s; position: relative; }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: rgba(201,79,42,0.04); }
+  .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .drop-zone .icon { font-size: 2rem; display: block; margin-bottom: 0.6rem; }
+  .drop-zone p { color: var(--muted); font-size: 0.78rem; line-height: 1.6; }
+  .drop-zone strong { color: var(--accent); }
+  .file-info { background: var(--bg); border-radius: 8px; padding: 0.8rem 1rem; font-size: 0.75rem;
+    display: none; gap: 1.5rem; flex-wrap: wrap; margin-top: 1rem; }
+  .file-info.visible { display: flex; }
+  .fi-item { display: flex; flex-direction: column; gap: 0.15rem; }
+  .fi-val { font-size: 1rem; font-family: 'Fraunces', serif; color: var(--accent2); }
+  .fi-lbl { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .config-row { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; margin-bottom: 0.8rem; }
+  .config-row label { color: var(--muted); font-size: 0.72rem; letter-spacing: 0.06em; }
+  .config-row input[type="number"], .config-row select {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    font-family: 'DM Mono', monospace; font-size: 0.85rem;
+    padding: 0.35rem 0.5rem; border-radius: 6px; outline: none; transition: border-color 0.2s; }
+  .config-row input[type="number"] { width: 80px; text-align: center; }
+  .config-row input:focus, .config-row select:focus { border-color: var(--accent); }
+  .strategy-box { background: var(--bg); border-radius: 8px; padding: 0.9rem 1rem; font-size: 0.7rem;
+    line-height: 1.9; color: var(--muted); border-left: 3px solid var(--accent2); }
+  .strategy-box b { color: var(--text); }
+  .progress-track { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; margin-bottom: 0.6rem; }
+  .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.3s ease; border-radius: 99px; }
+  .progress-meta { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--muted); margin-bottom: 0.8rem; }
+  .mini-stats { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 0.8rem; }
+  .ms { display: flex; flex-direction: column; gap: 0.1rem; }
+  .ms-val { font-size: 0.95rem; font-family: 'Fraunces', serif; }
+  .ms-val.g { color: var(--success); } .ms-val.o { color: var(--warn); } .ms-val.b { color: var(--accent2); }
+  .ms-lbl { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
+  .log-box { background: var(--bg); border-radius: 8px; padding: 0.8rem; max-height: 130px;
+    overflow-y: auto; font-size: 0.67rem; line-height: 1.8; color: var(--muted); }
+  .log-box .ok  { color: var(--success); }
+  .log-box .fb  { color: var(--warn); }
+  .log-box .err { color: #c93a2a; }
+  .log-box .inf { color: var(--accent2); }
+  .result-stats { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  .rs { display: flex; flex-direction: column; gap: 0.15rem; }
+  .rs-val { font-size: 1.1rem; font-family: 'Fraunces', serif; }
+  .rs-val.green { color: var(--success); } .rs-val.orange { color: var(--warn); } .rs-val.blue { color: var(--accent2); }
+  .rs-lbl { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .preview-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); margin-top: 0.5rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.7rem; }
+  th { background: var(--bg); padding: 0.5rem 0.7rem; text-align: left; color: var(--muted);
+    letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.62rem; border-bottom: 1px solid var(--border); }
+  td { padding: 0.45rem 0.7rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:nth-child(even) td { background: rgba(0,0,0,0.015); }
+  .ipa { color: var(--accent2); font-style: italic; }
+  .ipa-fb { color: var(--warn); font-style: italic; font-size: 0.65rem; }
+  .missing { color: #ccc; font-size: 0.65rem; }
+  .tag-fb { font-size: 0.58rem; background: rgba(201,122,42,0.15); color: var(--warn);
+    border-radius: 4px; padding: 0.1rem 0.3rem; margin-left: 0.3rem; vertical-align: middle; }
+  .btn { font-family: 'DM Mono', monospace; font-size: 0.78rem; letter-spacing: 0.06em;
+    padding: 0.7rem 1.5rem; border-radius: 8px; cursor: pointer; border: none; transition: opacity 0.15s, transform 0.1s; }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn:not(:disabled):hover { opacity: 0.85; transform: scale(0.98); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-secondary { background: transparent; border: 1px solid var(--accent2); color: var(--accent2); }
+  .btn-success { background: var(--success); color: #fff; }
+  .btn-row { display: flex; gap: 0.7rem; flex-wrap: wrap; margin-top: 1rem; }
+  @keyframes fadeDown { from { opacity:0; transform: translateY(-14px); } to { opacity:1; transform: none; } }
+  @keyframes fadeUp   { from { opacity:0; transform: translateY(10px);  } to { opacity:1; transform: none; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Phonetic <em>Enricher</em></h1>
+  <p>IPA automatique avec fallbacks multi-sources</p>
+</header>
+
+<!-- Step 1 -->
+<div class="card" style="animation-delay:0.05s">
+  <div class="card-title">① Charger le fichier JSON</div>
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".json">
+    <span class="icon">📂</span>
+    <p><strong>Glissez votre fichier JSON</strong> ici<br>ou cliquez pour choisir</p>
+  </div>
+  <div class="file-info" id="fileInfo">
+    <div class="fi-item"><span class="fi-val" id="fiWords">—</span><span class="fi-lbl">Mots</span></div>
+    <div class="fi-item"><span class="fi-val" id="fiFile">—</span><span class="fi-lbl">Fichier</span></div>
+    <div class="fi-item"><span class="fi-val" id="fiKeys">—</span><span class="fi-lbl">Champs</span></div>
+  </div>
+</div>
+
+<!-- Step 2 -->
+<div class="card" style="animation-delay:0.1s">
+  <div class="card-title">② Paramètres</div>
+
+  <div class="config-row">
+    <label>DÉLAI ENTRE REQUÊTES (ms)</label>
+    <input type="number" id="delay" value="100" min="50" max="2000">
+  </div>
+  <div class="config-row">
+    <label>FALLBACK SI INTROUVABLE</label>
+    <select id="fallback">
+      <option value="null">null</option>
+      <option value="empty">"" (chaîne vide)</option>
+      <option value="skip">Omettre le champ</option>
+    </select>
+  </div>
+
+  <div class="strategy-box" style="margin-bottom:1rem">
+    <b>Stratégie de recherche (dans l'ordre) :</b><br>
+    <b>1.</b> Mot exact → <code>dictionaryapi.dev</code><br>
+    <b>2.</b> Lemme extrait (ex: <i>running→run, amazing→amaze, called→call</i>)<br>
+    <b>3.</b> Variante sans doublon final (ex: <i>beginning→begin</i>)<br>
+    <b>4.</b> Racine -ing/-ed/-ly simplifiée<br>
+    <span style="opacity:0.6">Les phonétiques trouvées via fallback sont marquées <b style="color:var(--warn)">~</b> dans l'aperçu.</span>
+  </div>
+
+  <div class="btn-row" style="margin-top:0">
+    <button class="btn btn-primary" id="btnStart" onclick="startEnrichment()" disabled>▶ LANCER</button>
+    <button class="btn btn-secondary" id="btnPause" onclick="togglePause()" disabled>⏸ PAUSE</button>
+  </div>
+</div>
+
+<!-- Step 3: Progress -->
+<div class="card" id="progressCard" style="display:none; animation-delay:0.1s">
+  <div class="card-title">③ Progression</div>
+  <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="progress-meta">
+    <span id="progressText">0 / 0</span>
+    <span id="progressPct">0%</span>
+  </div>
+  <div class="mini-stats">
+    <div class="ms"><span class="ms-val g" id="msFound">0</span><span class="ms-lbl">✓ Exact</span></div>
+    <div class="ms"><span class="ms-val o" id="msFallback">0</span><span class="ms-lbl">~ Fallback</span></div>
+    <div class="ms"><span class="ms-val" id="msMissing" style="color:#c93a2a">0</span><span class="ms-lbl">✗ Manquant</span></div>
+    <div class="ms"><span class="ms-val b" id="msCache">0</span><span class="ms-lbl">⚡ Cache</span></div>
+  </div>
+  <div class="log-box" id="logBox"></div>
+</div>
+
+<!-- Step 4: Result -->
+<div class="card" id="resultCard" style="display:none; animation-delay:0.1s">
+  <div class="card-title">④ Résultat</div>
+  <div class="result-stats">
+    <div class="rs"><span class="rs-val green" id="rsExact">0</span><span class="rs-lbl">Exact</span></div>
+    <div class="rs"><span class="rs-val orange" id="rsFallback">0</span><span class="rs-lbl">Fallback</span></div>
+    <div class="rs"><span class="rs-val" id="rsMissing" style="color:#c93a2a">0</span><span class="rs-lbl">Manquant</span></div>
+    <div class="rs"><span class="rs-val blue" id="rsPct">0%</span><span class="rs-lbl">Couverture</span></div>
+  </div>
+  <div class="card-title" style="margin-top:1rem">Aperçu (20 premiers)</div>
+  <div class="preview-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Word</th><th>Phonetic</th><th>Lvl</th></tr></thead>
+      <tbody id="previewBody"></tbody>
+    </table>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-success" onclick="downloadResult()">⬇ TÉLÉCHARGER JSON ENRICHI</button>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────
+let rawData = [], enrichedData = [];
+let fileName = 'dictionary';
+let running = false, paused = false, pauseResolve = null;
+let cntExact = 0, cntFallback = 0, cntMissing = 0, cntCache = 0;
+const ipaCache = {};
+
+// ── File loading ───────────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+document.getElementById('fileInput').addEventListener('change', e => loadFile(e.target.files[0]));
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); loadFile(e.dataTransfer.files[0]); });
+
+function loadFile(file) {
+  if (!file) return;
+  fileName = file.name.replace(/\.json$/i, '');
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      rawData = JSON.parse(e.target.result);
+      if (!Array.isArray(rawData)) rawData = Object.values(rawData);
+      document.getElementById('fiWords').textContent = rawData.length.toLocaleString('fr');
+      document.getElementById('fiFile').textContent = file.name.length > 20 ? file.name.slice(0,20)+'…' : file.name;
+      document.getElementById('fiKeys').textContent = Object.keys(rawData[0]).join(', ');
+      document.getElementById('fileInfo').classList.add('visible');
+      document.getElementById('btnStart').disabled = false;
+    } catch(err) { alert('JSON invalide : ' + err.message); }
+  };
+  reader.readAsText(file);
+}
+
+// ── Lemmatizer – generates candidate base forms ────────────────
+function getCandidates(word) {
+  const w = word.toLowerCase().trim();
+  const cands = [];
+
+  // -ing forms: amazing→amaze, running→run, annoying→annoy, advertising→advertise
+  if (w.endsWith('ing') && w.length > 5) {
+    const stem = w.slice(0, -3);
+    cands.push(stem + 'e');   // amaz+e, advanc+e
+    cands.push(stem);          // annoy, accord
+    // double-consonant: running→run, beginning→begin
+    if (stem.length > 2 && stem.slice(-1) === stem.slice(-2, -1)) {
+      cands.push(stem.slice(0, -1));
+    }
+  }
+
+  // -ed forms: called→call, amazed→amaze, advanced→advance, confused→confuse
+  if (w.endsWith('ed') && w.length > 4) {
+    const stem = w.slice(0, -2);
+    cands.push(stem);          // call, amaz
+    cands.push(stem + 'e');    // amaze, advance
+    cands.push(w.slice(0,-1)); // confuse (confused→confus→confuse? no: confused→confuse = remove d)
+    // double-consonant: stopped→stop
+    if (stem.length > 2 && stem.slice(-1) === stem.slice(-2, -1)) {
+      cands.push(stem.slice(0, -1));
+    }
+  }
+
+  // -ly → remove: quickly→quick, absolutely→absolute, basically→basic
+  if (w.endsWith('ly') && w.length > 5) {
+    cands.push(w.slice(0, -2));
+    // -ily → -y: heavily→heavy
+    if (w.endsWith('ily')) cands.push(w.slice(0, -3) + 'y');
+  }
+
+  // -ness → kind
+  if (w.endsWith('ness') && w.length > 6) cands.push(w.slice(0, -4));
+
+  // -tion/-sion → remove (recognition→recognize is too complex, skip)
+  // -er comparative: bigger→big, harder→hard
+  if (w.endsWith('er') && w.length > 4) {
+    const stem = w.slice(0, -2);
+    cands.push(stem);
+    cands.push(stem + 'e');
+    if (stem.slice(-1) === stem.slice(-2,-1)) cands.push(stem.slice(0,-1)); // bigger→big
+  }
+
+  // -est: biggest→big
+  if (w.endsWith('est') && w.length > 5) {
+    const stem = w.slice(0, -3);
+    cands.push(stem);
+    cands.push(stem + 'e');
+    if (stem.slice(-1) === stem.slice(-2,-1)) cands.push(stem.slice(0,-1));
+  }
+
+  // -s: cats→cat, dogs→dog
+  if (w.endsWith('s') && !w.endsWith('ss') && w.length > 3) {
+    cands.push(w.slice(0,-1));
+    // -ies → -y: cities→city
+    if (w.endsWith('ies')) cands.push(w.slice(0,-3) + 'y');
+    // -es: boxes→box
+    if (w.endsWith('es')) cands.push(w.slice(0,-2));
+  }
+
+  // deduplicate while preserving order
+  const seen = new Set([w]);
+  return cands.filter(c => c.length > 1 && !seen.has(c) && seen.add(c));
+}
+
+// ── Fetch IPA from dictionaryapi.dev ──────────────────────────
+async function fetchIPA(word) {
+  const key = word.toLowerCase().trim();
+  if (ipaCache[key] !== undefined) { cntCache++; return ipaCache[key]; }
+  try {
+    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(key)}`);
+    if (!res.ok) { ipaCache[key] = null; return null; }
+    const data = await res.json();
+    let ipa = data[0]?.phonetic || null;
+    if (!ipa) {
+      outer: for (const entry of data) {
+        for (const ph of (entry.phonetics || [])) {
+          if (ph.text) { ipa = ph.text; break outer; }
+        }
+      }
+    }
+    ipaCache[key] = ipa || null;
+    return ipaCache[key];
+  } catch { ipaCache[key] = null; return null; }
+}
+
+// ── Fetch with full fallback chain ─────────────────────────────
+// Returns { ipa, via } where via = 'exact' | 'fallback:word' | null
+async function fetchWithFallback(word) {
+  // 1. Exact
+  let ipa = await fetchIPA(word);
+  if (ipa) return { ipa, via: 'exact' };
+
+  // 2. Lemma candidates
+  const candidates = getCandidates(word);
+  for (const cand of candidates) {
+    ipa = await fetchIPA(cand);
+    if (ipa) return { ipa, via: `fallback:${cand}` };
+  }
+
+  return { ipa: null, via: null };
+}
+
+// ── Pause ──────────────────────────────────────────────────────
+function waitIfPaused() {
+  if (!paused) return Promise.resolve();
+  return new Promise(r => { pauseResolve = r; });
+}
+function togglePause() {
+  paused = !paused;
+  document.getElementById('btnPause').textContent = paused ? '▶ REPRENDRE' : '⏸ PAUSE';
+  if (!paused && pauseResolve) { pauseResolve(); pauseResolve = null; }
+}
+
+// ── Logging ────────────────────────────────────────────────────
+function log(html) {
+  const box = document.getElementById('logBox');
+  const d = document.createElement('div');
+  d.innerHTML = html;
+  box.appendChild(d);
+  if (box.children.length > 200) box.removeChild(box.children[0]); // keep log lean
+  box.scrollTop = box.scrollHeight;
+}
+
+// ── Main ───────────────────────────────────────────────────────
+async function startEnrichment() {
+  if (running) return;
+  running = true;
+  cntExact = 0; cntFallback = 0; cntMissing = 0; cntCache = 0;
+  enrichedData = [];
+
+  document.getElementById('btnStart').disabled = true;
+  document.getElementById('btnPause').disabled = false;
+  document.getElementById('progressCard').style.display = 'block';
+  document.getElementById('resultCard').style.display = 'none';
+
+  const delay = parseInt(document.getElementById('delay').value) || 100;
+  const fallbackMode = document.getElementById('fallback').value;
+  const total = rawData.length;
+
+  log(`<span class="inf">→ Démarrage — ${total} mots, délai ${delay}ms</span>`);
+
+  const fill = document.getElementById('progressFill');
+  const pText = document.getElementById('progressText');
+  const pPct = document.getElementById('progressPct');
+
+  for (let i = 0; i < total; i++) {
+    await waitIfPaused();
+
+    const item = { ...rawData[i] };
+    const word = (item.word || '').trim();
+
+    const { ipa, via } = await fetchWithFallback(word);
+
+    if (ipa) {
+      if (via === 'exact') {
+        item.phonetic = ipa;
+        item._phoneticSource = 'exact';
+        cntExact++;
+        if (i % 25 === 0) log(`<span class="ok">✓ ${word} → ${ipa}</span>`);
+      } else {
+        const base = via.replace('fallback:', '');
+        item.phonetic = ipa;
+        item._phoneticSource = `fallback:${base}`;
+        cntFallback++;
+        if (i % 25 === 0) log(`<span class="fb">~ ${word} (via ${base}) → ${ipa}</span>`);
+      }
+    } else {
+      cntMissing++;
+      if (fallbackMode === 'null') item.phonetic = null;
+      else if (fallbackMode === 'empty') item.phonetic = '';
+      // skip: don't add field
+      item._phoneticSource = 'missing';
+      if (i % 25 === 0) log(`<span class="err">✗ ${word} — introuvable</span>`);
+    }
+
+    enrichedData.push(item);
+
+    // Update every 5 items
+    if (i % 5 === 0 || i === total - 1) {
+      const pct = Math.round(((i + 1) / total) * 100);
+      fill.style.width = pct + '%';
+      pText.textContent = `${(i+1).toLocaleString('fr')} / ${total.toLocaleString('fr')}`;
+      pPct.textContent = pct + '%';
+      document.getElementById('msFound').textContent = cntExact.toLocaleString('fr');
+      document.getElementById('msFallback').textContent = cntFallback.toLocaleString('fr');
+      document.getElementById('msMissing').textContent = cntMissing.toLocaleString('fr');
+      document.getElementById('msCache').textContent = cntCache.toLocaleString('fr');
+    }
+
+    await sleep(delay);
+  }
+
+  running = false;
+  document.getElementById('btnPause').disabled = true;
+  fill.style.width = '100%';
+  log(`<span class="inf">✓ Terminé — exact: ${cntExact}, fallback: ${cntFallback}, manquant: ${cntMissing}</span>`);
+
+  showResult(total);
+}
+
+function showResult(total) {
+  const covered = cntExact + cntFallback;
+  document.getElementById('rsExact').textContent = cntExact.toLocaleString('fr');
+  document.getElementById('rsFallback').textContent = cntFallback.toLocaleString('fr');
+  document.getElementById('rsMissing').textContent = cntMissing.toLocaleString('fr');
+  document.getElementById('rsPct').textContent = Math.round(covered / total * 100) + '%';
+
+  const tbody = document.getElementById('previewBody');
+  tbody.innerHTML = '';
+  enrichedData.slice(0, 20).forEach(item => {
+    const isFallback = item._phoneticSource && item._phoneticSource.startsWith('fallback');
+    const isMissing  = item._phoneticSource === 'missing';
+    let phoneticHtml = '<span class="missing">—</span>';
+    if (item.phonetic) {
+      phoneticHtml = isFallback
+        ? `<span class="ipa-fb">${item.phonetic}</span><span class="tag-fb">~${item._phoneticSource.replace('fallback:','')}</span>`
+        : `<span class="ipa">${item.phonetic}</span>`;
+    }
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${item.id ?? '—'}</td><td>${item.word ?? '—'}</td><td>${phoneticHtml}</td><td>${item.level ?? '—'}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('resultCard').style.display = 'block';
+  document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth' });
+}
+
+function downloadResult() {
+  // Strip internal _phoneticSource field before export
+  const clean = enrichedData.map(item => {
+    const { _phoneticSource, ...rest } = item;
+    return rest;
+  });
+  const blob = new Blob([JSON.stringify(clean, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${fileName}_phonetic.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+</body>
+</html>
