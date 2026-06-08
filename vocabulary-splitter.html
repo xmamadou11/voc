@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vocabulary Splitter</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;1,9..144,300&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0e0e0f;
+    --surface: #161618;
+    --border: #2a2a2e;
+    --accent: #c8f060;
+    --accent2: #60c8f0;
+    --text: #e8e8e0;
+    --muted: #666660;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 3rem;
+    animation: fadeDown 0.6s ease both;
+  }
+
+  header h1 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+
+  header h1 span { color: var(--accent); }
+
+  header p {
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+    letter-spacing: 0.05em;
+  }
+
+  .drop-zone {
+    width: 100%;
+    max-width: 640px;
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    animation: fadeUp 0.6s 0.1s ease both;
+    position: relative;
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(200,240,96,0.04);
+  }
+
+  .drop-zone input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+
+  .drop-zone .icon {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    display: block;
+  }
+
+  .drop-zone p { color: var(--muted); font-size: 0.8rem; }
+  .drop-zone strong { color: var(--accent); }
+
+  .config {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 2rem;
+    animation: fadeUp 0.6s 0.2s ease both;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .config label { color: var(--muted); font-size: 0.78rem; letter-spacing: 0.05em; }
+
+  .config input[type="number"] {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    font-family: 'DM Mono', monospace;
+    font-size: 1rem;
+    width: 90px;
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .config input[type="number"]:focus { border-color: var(--accent); }
+
+  .stats-bar {
+    display: none;
+    width: 100%;
+    max-width: 640px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.2rem 1.5rem;
+    margin-top: 2rem;
+    gap: 2rem;
+    flex-wrap: wrap;
+    animation: fadeUp 0.4s ease both;
+  }
+
+  .stats-bar.visible { display: flex; }
+
+  .stat { display: flex; flex-direction: column; gap: 0.2rem; }
+  .stat-val { font-size: 1.4rem; font-family: 'Fraunces', serif; color: var(--accent); }
+  .stat-lbl { font-size: 0.7rem; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+
+  .chunks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 0.75rem;
+    width: 100%;
+    max-width: 640px;
+    margin-top: 1.5rem;
+  }
+
+  .chunk-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    animation: fadeUp 0.3s ease both;
+    transition: border-color 0.2s, transform 0.15s;
+  }
+
+  .chunk-card:hover { border-color: var(--accent2); transform: translateY(-2px); }
+
+  .chunk-num {
+    font-family: 'Fraunces', serif;
+    font-size: 1.5rem;
+    font-style: italic;
+    color: var(--accent2);
+  }
+
+  .chunk-range {
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+
+  .chunk-count {
+    font-size: 0.75rem;
+    color: var(--text);
+  }
+
+  .btn-dl {
+    margin-top: auto;
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .btn-dl:hover { background: var(--accent); color: var(--bg); }
+
+  .btn-dl-all {
+    margin-top: 1.5rem;
+    background: var(--accent);
+    border: none;
+    color: var(--bg);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    padding: 0.75rem 2rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.15s;
+    display: none;
+  }
+  .btn-dl-all:hover { opacity: 0.85; transform: scale(0.99); }
+  .btn-dl-all.visible { display: inline-block; animation: fadeUp 0.4s 0.1s ease both; }
+
+  .progress-wrap {
+    width: 100%;
+    max-width: 640px;
+    margin-top: 1rem;
+    display: none;
+  }
+  .progress-wrap.visible { display: block; }
+  .progress-bar {
+    height: 3px;
+    background: var(--border);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.3s ease;
+    border-radius: 99px;
+  }
+  .progress-label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 0.4rem;
+    text-align: right;
+  }
+
+  @keyframes fadeDown { from { opacity:0; transform: translateY(-16px); } to { opacity:1; transform: none; } }
+  @keyframes fadeUp   { from { opacity:0; transform: translateY(12px);  } to { opacity:1; transform: none; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Vocabulary <span>Splitter</span></h1>
+  <p>FRACTIONNEZ VOTRE JSON EN LOTS DE N MOTS</p>
+</header>
+
+<div class="drop-zone" id="dropZone">
+  <input type="file" id="fileInput" accept=".json">
+  <span class="icon">📂</span>
+  <p><strong>Glissez votre fichier JSON</strong> ici<br>ou cliquez pour choisir</p>
+</div>
+
+<div class="config">
+  <label for="chunkSize">MOTS PAR LOT</label>
+  <input type="number" id="chunkSize" value="500" min="10" max="10000">
+  <label>— taille recommandée pour le traitement IA</label>
+</div>
+
+<div class="stats-bar" id="statsBar">
+  <div class="stat"><span class="stat-val" id="statTotal">—</span><span class="stat-lbl">Mots total</span></div>
+  <div class="stat"><span class="stat-val" id="statChunks">—</span><span class="stat-lbl">Lots créés</span></div>
+  <div class="stat"><span class="stat-val" id="statSize">—</span><span class="stat-lbl">Taille/lot</span></div>
+  <div class="stat"><span class="stat-val" id="statFile">—</span><span class="stat-lbl">Fichier source</span></div>
+</div>
+
+<div class="progress-wrap" id="progressWrap">
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="progress-label" id="progressLabel"></div>
+</div>
+
+<div class="chunks-grid" id="chunksGrid"></div>
+
+<button class="btn-dl-all" id="btnDlAll" onclick="downloadAll()">⬇ TOUT TÉLÉCHARGER (ZIP)</button>
+
+<script>
+let chunks = [];
+let fileName = 'dictionary';
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+});
+
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) processFile(e.target.files[0]);
+});
+
+document.getElementById('chunkSize').addEventListener('change', () => {
+  if (chunks.length > 0) return; // only re-render if data already loaded would need re-parse
+});
+
+function processFile(file) {
+  fileName = file.name.replace('.json', '');
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      splitData(data);
+    } catch (err) {
+      alert('❌ Fichier JSON invalide : ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function splitData(data) {
+  const size = parseInt(document.getElementById('chunkSize').value) || 500;
+  const arr = Array.isArray(data) ? data : Object.values(data);
+
+  chunks = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+
+  updateStats(arr.length, size);
+  renderCards();
+  document.getElementById('btnDlAll').classList.add('visible');
+}
+
+function updateStats(total, size) {
+  document.getElementById('statTotal').textContent = total.toLocaleString('fr');
+  document.getElementById('statChunks').textContent = chunks.length;
+  document.getElementById('statSize').textContent = size;
+  document.getElementById('statFile').textContent = fileName.length > 12 ? fileName.slice(0,12)+'…' : fileName;
+  document.getElementById('statsBar').classList.add('visible');
+}
+
+function renderCards() {
+  const grid = document.getElementById('chunksGrid');
+  grid.innerHTML = '';
+  chunks.forEach((chunk, i) => {
+    const start = chunk[0]?.id ?? (i * parseInt(document.getElementById('chunkSize').value) + 1);
+    const end   = chunk[chunk.length-1]?.id ?? start + chunk.length - 1;
+
+    const card = document.createElement('div');
+    card.className = 'chunk-card';
+    card.style.animationDelay = `${Math.min(i * 0.03, 0.5)}s`;
+    card.innerHTML = `
+      <div class="chunk-num">#${String(i+1).padStart(2,'0')}</div>
+      <div class="chunk-range">IDs ${start} → ${end}</div>
+      <div class="chunk-count">${chunk.length} mots</div>
+      <button class="btn-dl" onclick="downloadChunk(${i})">⬇ TÉLÉCHARGER</button>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function downloadChunk(i) {
+  const blob = new Blob([JSON.stringify(chunks[i], null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${fileName}_part${String(i+1).padStart(2,'0')}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function downloadAll() {
+  // Use JSZip from CDN if available, else sequential download
+  const btn = document.getElementById('btnDlAll');
+  btn.textContent = '⏳ PRÉPARATION…';
+  btn.disabled = true;
+
+  const progressWrap = document.getElementById('progressWrap');
+  const progressFill = document.getElementById('progressFill');
+  const progressLabel = document.getElementById('progressLabel');
+  progressWrap.classList.add('visible');
+
+  // Try to load JSZip
+  try {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+    const zip = new JSZip();
+    chunks.forEach((chunk, i) => {
+      zip.file(`${fileName}_part${String(i+1).padStart(2,'0')}.json`, JSON.stringify(chunk, null, 2));
+      const pct = Math.round(((i+1)/chunks.length)*80);
+      progressFill.style.width = pct + '%';
+      progressLabel.textContent = `Compression lot ${i+1}/${chunks.length}…`;
+    });
+    progressLabel.textContent = 'Génération du ZIP…';
+    const blob = await zip.generateAsync({ type: 'blob' }, meta => {
+      progressFill.style.width = (80 + meta.percent * 0.2) + '%';
+    });
+    progressFill.style.width = '100%';
+    progressLabel.textContent = 'Téléchargement…';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${fileName}_all_chunks.zip`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch(e) {
+    // Fallback: download each separately
+    progressLabel.textContent = 'Téléchargement un par un…';
+    for (let i = 0; i < chunks.length; i++) {
+      downloadChunk(i);
+      progressFill.style.width = Math.round(((i+1)/chunks.length)*100) + '%';
+      progressLabel.textContent = `Lot ${i+1}/${chunks.length}…`;
+      await sleep(300);
+    }
+  }
+
+  setTimeout(() => {
+    progressWrap.classList.remove('visible');
+    progressFill.style.width = '0%';
+    btn.textContent = '⬇ TOUT TÉLÉCHARGER (ZIP)';
+    btn.disabled = false;
+  }, 1500);
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) return resolve();
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+</body>
+</html>
