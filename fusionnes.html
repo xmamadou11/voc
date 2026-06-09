@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Fusion JSON – Dictionnaire</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 8px;
+    }
+    p.subtitle {
+      color: #888;
+      font-size: 0.9rem;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    .card {
+      background: #1c1f2b;
+      border: 1px solid #2e3148;
+      border-radius: 12px;
+      padding: 28px;
+      width: 100%;
+      max-width: 700px;
+      margin-bottom: 24px;
+    }
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #a0a8ff;
+      margin-bottom: 16px;
+    }
+    .drop-zone {
+      border: 2px dashed #3a3f60;
+      border-radius: 8px;
+      padding: 36px;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+      color: #666;
+      font-size: 0.95rem;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      background: #22264a;
+      border-color: #6068f0;
+      color: #aaa;
+    }
+    .drop-zone input { display: none; }
+    #status-box {
+      background: #111420;
+      border-radius: 8px;
+      padding: 16px;
+      min-height: 80px;
+      font-size: 0.85rem;
+      color: #888;
+      line-height: 1.7;
+    }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      margin-left: 4px;
+    }
+    .tag.ok  { background: #1a3d2e; color: #4caf80; }
+    .tag.err { background: #3d1a1a; color: #cf6679; }
+    .tag.info { background: #1a2d4a; color: #5ca8f0; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 22px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.92rem;
+      font-weight: 600;
+      transition: opacity 0.15s;
+    }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-primary { background: #5a60f0; color: white; }
+    .btn-primary:hover:not(:disabled) { background: #6870f5; }
+    .btn-secondary { background: #2b2f4a; color: #c0c8ff; }
+    .btn-secondary:hover:not(:disabled) { background: #363b62; }
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .stat-item {
+      background: #111420;
+      border-radius: 8px;
+      padding: 14px;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      color: #666;
+      margin-top: 4px;
+    }
+    .preview-box {
+      background: #111420;
+      border-radius: 8px;
+      padding: 14px;
+      font-family: monospace;
+      font-size: 0.78rem;
+      color: #6adf9e;
+      white-space: pre-wrap;
+      max-height: 220px;
+      overflow-y: auto;
+      margin-top: 14px;
+      line-height: 1.5;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+
+  <h1>🔗 Fusion JSON – Dictionnaire</h1>
+  <p class="subtitle">Chargez votre fichier <strong>.txt</strong> ou <strong>.json</strong> contenant plusieurs tableaux JSON séparés.<br>
+  L'outil les fusionne en un seul tableau trié par <code>id</code>.</p>
+
+  <!-- Upload -->
+  <div class="card">
+    <h2>📂 Charger le fichier</h2>
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <input type="file" id="file-input" accept=".txt,.json" />
+      <div>Cliquez ou glissez-déposez votre fichier ici</div>
+      <div style="font-size:0.8rem; margin-top:6px; color:#555">Formats acceptés : .txt, .json</div>
+    </div>
+  </div>
+
+  <!-- Statut -->
+  <div class="card" id="result-card" class="hidden" style="display:none">
+    <h2>📊 Résultat de la fusion</h2>
+    <div id="status-box">En attente d'un fichier...</div>
+
+    <div class="stats-grid" id="stats-grid" style="display:none">
+      <div class="stat-item">
+        <div class="stat-value" id="st-arrays">–</div>
+        <div class="stat-label">Tableaux détectés</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="st-entries">–</div>
+        <div class="stat-label">Entrées fusionnées</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="st-dupes">–</div>
+        <div class="stat-label">Doublons supprimés</div>
+      </div>
+    </div>
+
+    <div class="preview-box hidden" id="preview-box"></div>
+
+    <div class="actions" style="margin-top:16px">
+      <button class="btn btn-primary" id="btn-download" disabled onclick="downloadJSON()">
+        ⬇ Télécharger le JSON fusionné
+      </button>
+      <button class="btn btn-secondary" id="btn-preview" disabled onclick="togglePreview()">
+        👁 Aperçu
+      </button>
+    </div>
+  </div>
+
+  <script>
+    let mergedData = null;
+
+    // Drag & drop
+    const dropZone = document.getElementById('drop-zone');
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file) processFile(file);
+    });
+
+    document.getElementById('file-input').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (file) processFile(file);
+    });
+
+    function processFile(file) {
+      const resultCard = document.getElementById('result-card');
+      resultCard.style.display = 'block';
+
+      setStatus(`<span class="tag info">⏳ Chargement</span> Lecture de <strong>${file.name}</strong> (${(file.size/1024).toFixed(1)} Ko)...`);
+
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const raw = e.target.result;
+          const result = mergeJSONArrays(raw);
+          mergedData = result.merged;
+
+          document.getElementById('st-arrays').textContent  = result.arrayCount;
+          document.getElementById('st-entries').textContent = result.merged.length;
+          document.getElementById('st-dupes').textContent   = result.dupes;
+          document.getElementById('stats-grid').style.display = 'grid';
+
+          setStatus(
+            `<span class="tag ok">✓ Succès</span> <strong>${result.arrayCount}</strong> tableaux fusionnés → ` +
+            `<strong>${result.merged.length}</strong> entrées uniques` +
+            (result.dupes > 0 ? ` (<span class="tag err">${result.dupes} doublons</span> supprimés)` : '') +
+            `.<br>Fichier prêt à télécharger.`
+          );
+
+          document.getElementById('btn-download').disabled = false;
+          document.getElementById('btn-preview').disabled  = false;
+
+          // Aperçu auto des 3 premières entrées
+          updatePreview(false);
+
+        } catch (err) {
+          setStatus(`<span class="tag err">✗ Erreur</span> ${err.message}`);
+        }
+      };
+      reader.onerror = () => setStatus(`<span class="tag err">✗ Erreur</span> Impossible de lire le fichier.`);
+      reader.readAsText(file, 'utf-8');
+    }
+
+    /**
+     * Extrait tous les tableaux JSON du texte brut (peu importe le format),
+     * les concatène, déduplique par id, trie par id.
+     */
+    function mergeJSONArrays(raw) {
+      // Stratégie : trouver toutes les occurrences de "[" ... "]" de niveau 0
+      // en parsant caractère par caractère pour gérer les imbrications.
+      const arrays = [];
+      let depth = 0;
+      let start = -1;
+      let inString = false;
+      let escape = false;
+
+      for (let i = 0; i < raw.length; i++) {
+        const ch = raw[i];
+
+        if (escape) { escape = false; continue; }
+        if (ch === '\\' && inString) { escape = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (inString) continue;
+
+        if (ch === '[') {
+          if (depth === 0) start = i;
+          depth++;
+        } else if (ch === ']') {
+          depth--;
+          if (depth === 0 && start !== -1) {
+            const chunk = raw.slice(start, i + 1);
+            try {
+              const parsed = JSON.parse(chunk);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                arrays.push(parsed);
+              }
+            } catch (_) {
+              // chunk invalide, on ignore
+            }
+            start = -1;
+          }
+        }
+      }
+
+      if (arrays.length === 0) {
+        throw new Error('Aucun tableau JSON valide trouvé dans le fichier.');
+      }
+
+      // Fusion
+      const all = arrays.flat();
+
+      // Déduplique par id (garde le premier)
+      const seen = new Map();
+      let dupes = 0;
+      for (const entry of all) {
+        const key = entry.id !== undefined ? entry.id : JSON.stringify(entry);
+        if (!seen.has(key)) {
+          seen.set(key, entry);
+        } else {
+          dupes++;
+        }
+      }
+
+      // Trie par id numérique si possible
+      const merged = [...seen.values()].sort((a, b) => {
+        if (a.id !== undefined && b.id !== undefined) return a.id - b.id;
+        return 0;
+      });
+
+      return { merged, arrayCount: arrays.length, dupes };
+    }
+
+    function setStatus(html) {
+      document.getElementById('status-box').innerHTML = html;
+    }
+
+    let previewVisible = false;
+    function togglePreview() {
+      previewVisible = !previewVisible;
+      updatePreview(previewVisible);
+      document.getElementById('btn-preview').textContent = previewVisible ? '🙈 Masquer' : '👁 Aperçu';
+    }
+
+    function updatePreview(show) {
+      const box = document.getElementById('preview-box');
+      if (!mergedData) return;
+      if (!show) { box.classList.add('hidden'); return; }
+
+      const sample = mergedData.slice(0, 5);
+      box.textContent = JSON.stringify(sample, null, 2) + '\n\n// ... (' + mergedData.length + ' entrées au total)';
+      box.classList.remove('hidden');
+    }
+
+    function downloadJSON() {
+      if (!mergedData) return;
+      const json = JSON.stringify(mergedData, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = 'dictionary_merged.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
