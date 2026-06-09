@@ -1,0 +1,92 @@
+<!-- ════════════════════════════════════════════════════════════════
+     1. STYLE CSS (À placer dans vos styles ou entre vos balises <style>)
+     ════════════════════════════════════════════════════════════════ -->
+<style>
+/* ═════════ INTEGRATION VISUELLE DES CREDITS ═════════ */
+.stat-credits .stat-val {
+  color: var(--sky);
+}
+
+.credit-bar-wrap {
+  position: relative;
+  z-index: 1;
+  background: var(--xp-bar-bg);
+  height: 6px;
+  max-width: 640px;
+  margin: 4px auto 0; /* Aligné pile sous la barre d'XP */
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+.credit-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--sky), var(--purple));
+  transition: width .4s cubic-bezier(.4,0,.2,1);
+}
+
+.credit-bar-txt {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.6em;
+  font-weight: 700;
+  color: var(--sky);
+  background: rgba(12,15,26,.8);
+  padding: 0 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+  line-height: 1.6;
+}
+
+body.light-mode .credit-bar-txt {
+  background: rgba(244,241,234,.9);
+}
+</style>
+
+
+<!-- ════════════════════════════════════════════════════════════════
+     2. STRUCTURE HTML (À remplacer dans le corps du code)
+     ════════════════════════════════════════════════════════════════ -->
+
+<!-- ═════════ BARRE DE STATISTIQUES GLOBALE ═════════ -->
+<div class="stats-bar">
+  <div class="stat-cell">
+    <div class="stat-val" id="st-xp">0</div>
+    <div class="stat-lbl">XP Total</div>
+  </div>
+  
+  <div class="stat-cell">
+    <div class="stat-val" id="st-streak">0</div>
+    <div class="stat-lbl">Série</div>
+  </div>
+  
+  <div class="stat-cell">
+    <div class="stat-val" id="st-score">–</div>
+    <div class="stat-lbl">Précision</div>
+  </div>
+
+  <!-- NOUVEAU COMPTEUR DE CRÉDITS -->
+  <div class="stat-cell stat-credits">
+    <div class="stat-val" id="st-credits">0</div>
+    <div class="stat-lbl">Crédits</div>
+  </div>
+  
+  <div class="stat-cell">
+    <div class="stat-val" id="st-best">0</div>
+    <div class="stat-lbl">Meilleur</div>
+  </div>
+</div>
+
+<!-- ═════════ DOUBLE ZONE DES JAUGES DE PROGRESSION ═════════ -->
+<!-- Jauge d'XP originale -->
+<div class="xp-bar-wrap">
+  <div class="xp-bar-fill" id="xpBarFill" style="width:0%"></div>
+  <div class="xp-bar-txt" id="xpBarTxt">→ Niv.2 à 100 XP</div>
+</div>
+
+<!-- Nouvelle Jauge de Crédits (Visuel calé à 40% pour illustration) -->
+<div class="credit-bar-wrap">
+  <div class="credit-bar-fill" id="creditBarFill" style="width: 40%"></div>
+  <div class="credit-bar-txt" id="creditBarTxt">Objectif : 20 / 50 🪙</div>
+</div>
