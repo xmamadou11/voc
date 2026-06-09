@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Fusion des exemples — v2</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
+
+  header {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    color: white; padding: 24px 32px;
+  }
+  header h1 { font-size: 1.4rem; font-weight: 600; }
+  header p { font-size: 0.85rem; opacity: 0.7; margin-top: 4px; }
+
+  .container { max-width: 960px; margin: 0 auto; padding: 32px 16px; }
+
+  .card {
+    background: white; border-radius: 12px; padding: 24px;
+    margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  }
+  .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 16px; color: #1a1a2e; }
+
+  /* Mode toggle */
+  .mode-toggle { display: flex; gap: 0; border: 2px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 0; }
+  .mode-btn {
+    flex: 1; padding: 10px 16px; background: white; border: none; cursor: pointer;
+    font-size: 0.85rem; font-weight: 500; color: #6b7280; transition: all 0.15s;
+    border-right: 2px solid #e2e8f0;
+  }
+  .mode-btn:last-child { border-right: none; }
+  .mode-btn.active { background: #4f46e5; color: white; }
+  .mode-desc { font-size: 0.8rem; color: #6b7280; margin-top: 10px; padding: 10px 14px; background: #f8f9fa; border-radius: 6px; line-height: 1.5; }
+
+  .upload-row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .upload-box {
+    flex: 1; min-width: 240px;
+    border: 2px dashed #d0d5dd; border-radius: 8px;
+    padding: 20px 16px; text-align: center; cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .upload-box:hover { border-color: #4f46e5; background: #f5f3ff; }
+  .upload-box.loaded { border-color: #22c55e; background: #f0fdf4; }
+  .upload-box label { display: block; cursor: pointer; }
+  .upload-box input[type=file] { display: none; }
+  .upload-box .icon { font-size: 2rem; margin-bottom: 8px; }
+  .upload-box .count { font-size: 0.75rem; color: #22c55e; margin-top: 4px; font-weight: 500; }
+
+  .stats-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .stat {
+    flex: 1; min-width: 130px; background: #f8f9fa;
+    border-radius: 8px; padding: 14px 16px; text-align: center;
+  }
+  .stat .val { font-size: 1.6rem; font-weight: 700; color: #4f46e5; }
+  .stat .val.orange { color: #f59e0b; }
+  .stat .lbl { font-size: 0.75rem; color: #6b7280; margin-top: 2px; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 24px; border-radius: 8px; border: none;
+    font-size: 0.9rem; font-weight: 600; cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: #4f46e5; color: white; }
+  .btn-primary:hover:not(:disabled) { background: #4338ca; }
+  .btn-green { background: #22c55e; color: white; }
+  .btn-green:hover:not(:disabled) { background: #16a34a; }
+
+  .preview-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-top: 12px; }
+  .preview-table th {
+    background: #f1f5f9; text-align: left; padding: 8px 10px;
+    font-weight: 600; color: #475569; border-bottom: 2px solid #e2e8f0;
+  }
+  .preview-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  .preview-table tr:hover td { background: #fafafa; }
+  .badge {
+    display: inline-block; padding: 2px 7px; border-radius: 20px;
+    font-size: 0.7rem; font-weight: 600;
+  }
+  .badge-blue { background: #e0e7ff; color: #4f46e5; }
+  .badge-green { background: #dcfce7; color: #16a34a; }
+  .badge-orange { background: #fef3c7; color: #d97706; }
+  .old { color: #ef4444; text-decoration: line-through; font-size: 0.78rem; }
+  .new { color: #16a34a; font-size: 0.78rem; margin-top: 3px; }
+  .add { color: #16a34a; font-size: 0.78rem; }
+  .empty { color: #9ca3af; font-style: italic; font-size: 0.78rem; }
+
+  .progress-wrap { background: #e5e7eb; border-radius: 99px; overflow: hidden; height: 10px; margin: 12px 0 4px; }
+  .progress-bar { height: 100%; background: linear-gradient(90deg, #4f46e5, #818cf8); border-radius: 99px; transition: width 0.3s; }
+  .progress-lbl { font-size: 0.78rem; color: #6b7280; text-align: center; }
+  #log { font-size: 0.82rem; color: #4b5563; margin-top: 10px; }
+  .actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+  .hidden { display: none; }
+
+  .info-box {
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px;
+    padding: 10px 14px; font-size: 0.82rem; color: #1e40af; margin-top: 12px; line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🔄 Fusion des exemples — v3</h1>
+  <p>Remplace ou ajoute des exemples dans <em>voc_nécessaire</em> · Réordonne automatiquement les clés JSON</p>
+</header>
+
+<div class="container">
+
+  <!-- Mode -->
+  <div class="card">
+    <h2>⚙️ Mode de fusion</h2>
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="modeReplace" onclick="setMode('replace')">🔁 Remplacer les exemples</button>
+      <button class="mode-btn" id="modeAdd" onclick="setMode('add')">➕ Ajouter les exemples</button>
+    </div>
+    <div class="mode-desc" id="modeDesc">
+      <strong>Remplacer :</strong> Les exemples de la source écrasent <em>systématiquement</em> ceux du voc nécessaire pour tous les mots en commun — même si les exemples sont déjà identiques.
+    </div>
+  </div>
+
+  <!-- Upload -->
+  <div class="card">
+    <h2>📂 Chargement des fichiers</h2>
+    <div class="upload-row">
+      <div class="upload-box" id="boxSource">
+        <label>
+          <div class="icon">📝</div>
+          <strong id="sourceLabel">exemple_a_remplacer.json</strong>
+          <div style="font-size:0.8rem;color:#6b7280;margin-top:4px;">Exemples source</div>
+          <input type="file" id="fileSource" accept=".json">
+          <div class="count" id="countSource"></div>
+        </label>
+      </div>
+      <div class="upload-box" id="boxVoc">
+        <label>
+          <div class="icon">📚</div>
+          <strong>voc_nécessaire.json</strong>
+          <div style="font-size:0.8rem;color:#6b7280;margin-top:4px;">Dictionnaire cible</div>
+          <input type="file" id="fileVoc" accept=".json">
+          <div class="count" id="countVoc"></div>
+        </label>
+      </div>
+    </div>
+    <div class="info-box">
+      ℹ️ Le fichier JSON téléchargé aura automatiquement les clés dans l'ordre : <code>id → word → phonetic → level → translation → exampleEnglish → exampleFrench</code>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="card hidden" id="statsCard">
+    <h2>📊 Analyse</h2>
+    <div class="stats-row" id="statsRow"></div>
+  </div>
+
+  <!-- Preview -->
+  <div class="card hidden" id="previewCard">
+    <h2>👁 Aperçu des changements (20 premiers)</h2>
+    <div style="overflow-x:auto;">
+      <table class="preview-table">
+        <thead><tr>
+          <th>Mot</th><th>Niv.</th>
+          <th>Exemple EN</th>
+          <th>Exemple FR</th>
+        </tr></thead>
+        <tbody id="previewBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Action -->
+  <div class="card hidden" id="actionCard">
+    <h2>⚙️ Appliquer la fusion</h2>
+    <div class="progress-wrap hidden" id="progressWrap">
+      <div class="progress-bar" id="progressBar" style="width:0%"></div>
+    </div>
+    <div class="progress-lbl hidden" id="progressLbl"></div>
+    <div id="log"></div>
+    <div class="actions">
+      <button class="btn btn-primary" id="btnRun">▶ Lancer la fusion</button>
+      <button class="btn btn-green hidden" id="btnDownload">⬇ Télécharger voc_necessaire_updated.json</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let sourceData = null;
+let vocData = null;
+let resultData = null;
+let currentMode = 'replace';
+
+const modeDescs = {
+  replace: '<strong>Remplacer :</strong> Les exemples de la source écrasent <em>systématiquement</em> ceux du voc nécessaire pour tous les mots en commun — même si les exemples sont déjà identiques.',
+  add: '<strong>Ajouter :</strong> Les exemples de la source sont ajoutés aux mots correspondants du voc nécessaire uniquement si ces mots n\'ont pas encore d\'exemples (champs vides ou absents).'
+};
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('modeReplace').classList.toggle('active', mode === 'replace');
+  document.getElementById('modeAdd').classList.toggle('active', mode === 'add');
+  document.getElementById('modeDesc').innerHTML = modeDescs[mode];
+  document.getElementById('sourceLabel').textContent = mode === 'replace' ? 'exemple_a_remplacer.json' : 'nouveaux_exemples.json';
+  if (sourceData && vocData) tryAnalyze();
+}
+
+function loadJSON(file, cb) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try { cb(JSON.parse(e.target.result)); }
+    catch(err) { alert('Erreur JSON : ' + err.message); }
+  };
+  reader.readAsText(file);
+}
+
+document.getElementById('fileSource').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  loadJSON(f, data => {
+    sourceData = data;
+    document.getElementById('countSource').textContent = data.length + ' entrées ✓';
+    document.getElementById('boxSource').classList.add('loaded');
+    tryAnalyze();
+  });
+});
+
+document.getElementById('fileVoc').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  loadJSON(f, data => {
+    vocData = data;
+    document.getElementById('countVoc').textContent = data.length + ' entrées ✓';
+    document.getElementById('boxVoc').classList.add('loaded');
+    tryAnalyze();
+  });
+});
+
+function tryAnalyze() {
+  if (!sourceData || !vocData) return;
+
+  const srcMap = {};
+  for (const e of sourceData) srcMap[e.word] = e;
+
+  const vocMap = {};
+  for (const e of vocData) vocMap[e.word] = e;
+
+  const overlap = sourceData.filter(e => vocMap[e.word]);
+  const notFound = sourceData.filter(e => !vocMap[e.word]);
+
+  let changes = [];
+
+  if (currentMode === 'replace') {
+    for (const s of overlap) {
+      const v = vocMap[s.word];
+      // Remplace toujours, même si les exemples sont identiques
+      if (s.exampleEnglish || s.exampleFrench) changes.push({ s, v, type: 'replace' });
+    }
+  } else {
+    // add mode: only where voc has empty/missing examples
+    for (const s of overlap) {
+      const v = vocMap[s.word];
+      const enEmpty = !v.exampleEnglish || v.exampleEnglish.trim() === '';
+      const frEmpty = !v.exampleFrench  || v.exampleFrench.trim()  === '';
+      const srcHasEn = s.exampleEnglish && s.exampleEnglish.trim() !== '';
+      const srcHasFr = s.exampleFrench  && s.exampleFrench.trim()  !== '';
+      if ((enEmpty && srcHasEn) || (frEmpty && srcHasFr)) {
+        changes.push({ s, v, type: 'add', enAdd: enEmpty && srcHasEn, frAdd: frEmpty && srcHasFr });
+      }
+    }
+  }
+
+  // Stats
+  const statsRow = document.getElementById('statsRow');
+  statsRow.innerHTML = '';
+  const stats = [
+    { val: vocData.length.toLocaleString(), lbl: 'Entrées dans voc', cls: '' },
+    { val: sourceData.length.toLocaleString(), lbl: 'Entrées source', cls: '' },
+    { val: overlap.length.toLocaleString(), lbl: 'Mots en commun', cls: '' },
+    { val: changes.length.toLocaleString(), lbl: currentMode === 'replace' ? 'Mots à remplacer (tous)' : 'Exemples à ajouter', cls: changes.length > 0 ? '' : 'orange' },
+    { val: notFound.length.toLocaleString(), lbl: 'Source absente du voc', cls: notFound.length > 0 ? 'orange' : '' },
+  ];
+  for (const s of stats) {
+    const d = document.createElement('div');
+    d.className = 'stat';
+    d.innerHTML = `<div class="val ${s.cls}">${s.val}</div><div class="lbl">${s.lbl}</div>`;
+    statsRow.appendChild(d);
+  }
+  show('statsCard');
+
+  // Preview
+  const tbody = document.getElementById('previewBody');
+  tbody.innerHTML = '';
+
+  if (changes.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:20px;color:#9ca3af;">Aucun changement à effectuer dans ce mode.</td></tr>`;
+  } else {
+    for (const ch of changes.slice(0, 20)) {
+      const { s, v } = ch;
+      const tr = document.createElement('tr');
+
+      let enCell = '', frCell = '';
+      if (currentMode === 'replace') {
+        const enChanged = (s.exampleEnglish || '') !== (v.exampleEnglish || '');
+        const frChanged = (s.exampleFrench  || '') !== (v.exampleFrench  || '');
+        enCell = s.exampleEnglish
+          ? (enChanged
+              ? `<div class="old">${esc(v.exampleEnglish)}</div><div class="new">→ ${esc(s.exampleEnglish)}</div>`
+              : `<div class="new">✓ ${esc(s.exampleEnglish)} <span style="color:#9ca3af;font-size:0.73rem">(identique)</span></div>`)
+          : `<span class="empty">—</span>`;
+        frCell = s.exampleFrench
+          ? (frChanged
+              ? `<div class="old">${esc(v.exampleFrench)}</div><div class="new">→ ${esc(s.exampleFrench)}</div>`
+              : `<div class="new">✓ ${esc(s.exampleFrench)} <span style="color:#9ca3af;font-size:0.73rem">(identique)</span></div>`)
+          : `<span class="empty">—</span>`;
+      } else {
+        enCell = ch.enAdd
+          ? `<span class="empty">(vide)</span><div class="add">+ ${esc(s.exampleEnglish)}</div>`
+          : `<span class="empty">déjà présent</span>`;
+        frCell = ch.frAdd
+          ? `<span class="empty">(vide)</span><div class="add">+ ${esc(s.exampleFrench)}</div>`
+          : `<span class="empty">déjà présent</span>`;
+      }
+
+      const badgeCls = currentMode === 'replace' ? 'badge-blue' : 'badge-green';
+      tr.innerHTML = `
+        <td><strong>${esc(v.word)}</strong></td>
+        <td><span class="badge ${badgeCls}">${esc(v.level)}</span></td>
+        <td>${enCell}</td>
+        <td>${frCell}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+  }
+  show('previewCard');
+  show('actionCard');
+  document.getElementById('btnDownload').classList.add('hidden');
+  document.getElementById('log').textContent = '';
+}
+
+// Reorder keys: id, word, phonetic, level, translation, exampleEnglish, exampleFrench
+function reorderEntry(e) {
+  const ordered = {};
+  const keyOrder = ['id', 'word', 'phonetic', 'level', 'translation', 'exampleEnglish', 'exampleFrench'];
+  for (const k of keyOrder) {
+    if (k in e) ordered[k] = e[k];
+  }
+  // add any remaining keys not in the list
+  for (const k of Object.keys(e)) {
+    if (!(k in ordered)) ordered[k] = e[k];
+  }
+  return ordered;
+}
+
+document.getElementById('btnRun').addEventListener('click', () => {
+  if (!sourceData || !vocData) return;
+
+  const srcMap = {};
+  for (const e of sourceData) srcMap[e.word] = e;
+
+  resultData = JSON.parse(JSON.stringify(vocData));
+  let changed = 0;
+  const total = resultData.length;
+
+  show('progressWrap');
+  show('progressLbl');
+  document.getElementById('btnRun').disabled = true;
+  document.getElementById('btnDownload').classList.add('hidden');
+
+  let i = 0;
+  function chunk() {
+    const end = Math.min(i + 500, total);
+    for (; i < end; i++) {
+      const e = resultData[i];
+      if (srcMap[e.word]) {
+        const s = srcMap[e.word];
+        if (currentMode === 'replace') {
+          // Remplace toujours si la source a les exemples
+          if (s.exampleEnglish) e.exampleEnglish = s.exampleEnglish;
+          if (s.exampleFrench)  e.exampleFrench  = s.exampleFrench;
+          changed++;
+        } else {
+          const enEmpty = !e.exampleEnglish || e.exampleEnglish.trim() === '';
+          const frEmpty = !e.exampleFrench  || e.exampleFrench.trim()  === '';
+          const srcHasEn = s.exampleEnglish && s.exampleEnglish.trim() !== '';
+          const srcHasFr = s.exampleFrench  && s.exampleFrench.trim()  !== '';
+          let didChange = false;
+          if (enEmpty && srcHasEn) { e.exampleEnglish = s.exampleEnglish; didChange = true; }
+          if (frEmpty && srcHasFr) { e.exampleFrench  = s.exampleFrench;  didChange = true; }
+          if (didChange) changed++;
+        }
+      }
+      // Reorder keys regardless
+      resultData[i] = reorderEntry(e);
+    }
+
+    const pct = Math.round((i / total) * 100);
+    document.getElementById('progressBar').style.width = pct + '%';
+    document.getElementById('progressLbl').textContent =
+      `Traitement : ${i.toLocaleString()} / ${total.toLocaleString()} — ${changed} modifiés`;
+
+    if (i < total) {
+      requestAnimationFrame(chunk);
+    } else {
+      const verb = currentMode === 'replace' ? 'remplacés' : 'ajoutés';
+      document.getElementById('log').textContent =
+        `✅ Fusion terminée : ${changed} exemples ${verb} sur ${total} entrées. Clés JSON réordonnées (phonetic après word).`;
+      document.getElementById('btnDownload').classList.remove('hidden');
+      document.getElementById('btnRun').disabled = false;
+    }
+  }
+  requestAnimationFrame(chunk);
+});
+
+document.getElementById('btnDownload').addEventListener('click', () => {
+  if (!resultData) return;
+  const blob = new Blob([JSON.stringify(resultData, null, 2)], { type: 'application/json' });
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob),
+    download: 'voc_necessaire_updated.json'
+  });
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>
