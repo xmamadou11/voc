@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compresser les audios en ZIP</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+body{font-family:Arial;padding:30px;text-align:center}
+button{padding:12px 20px;font-size:16px}
+</style>
+</head>
+<body>
+<h2>Créer un ZIP de tous les audios</h2>
+
+<input type="file" id="folder" webkitdirectory multiple>
+<br><br>
+<button onclick="createZip()">Créer le ZIP</button>
+
+<p id="status"></p>
+
+<script>
+async function createZip() {
+    const files = document.getElementById('folder').files;
+
+    if (!files.length) {
+        alert('Sélectionnez votre dossier audio.');
+        return;
+    }
+
+    const zip = new JSZip();
+
+    document.getElementById('status').textContent =
+        'Ajout de ' + files.length + ' fichiers...';
+
+    for (const file of files) {
+        zip.file(file.webkitRelativePath || file.name, file);
+    }
+
+    document.getElementById('status').textContent =
+        'Création du ZIP...';
+
+    const blob = await zip.generateAsync({type:'blob'});
+
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'voc_audio.zip';
+    a.click();
+
+    document.getElementById('status').textContent =
+        'ZIP créé avec succès.';
+}
+</script>
+</body>
+</html>
