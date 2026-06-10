@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MP3 → ZIP</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0d0d0d;
+    --surface:  #161616;
+    --border:   #2a2a2a;
+    --accent:   #00e5a0;
+    --accent2:  #005f43;
+    --text:     #e8e8e8;
+    --muted:    #666;
+    --danger:   #ff4d4d;
+    --mono:     'IBM Plex Mono', monospace;
+    --sans:     'IBM Plex Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 680px;
+  }
+
+  header {
+    margin-bottom: 3rem;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.6rem;
+  }
+
+  h1 {
+    font-family: var(--mono);
+    font-size: clamp(2rem, 6vw, 3.2rem);
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  h1 span { color: var(--accent); }
+
+  .subtitle {
+    margin-top: 0.75rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-weight: 300;
+  }
+
+  /* Drop zone */
+  .drop-zone {
+    border: 1.5px dashed var(--border);
+    border-radius: 4px;
+    padding: 2.5rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(0,229,160,0.04);
+  }
+
+  .drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .drop-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+    line-height: 1;
+  }
+
+  .drop-label {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .drop-label strong {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .file-count {
+    margin-top: 0.5rem;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--accent);
+    min-height: 1.2em;
+  }
+
+  /* Options */
+  .options {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.25rem;
+    flex-wrap: wrap;
+  }
+
+  .opt-group {
+    flex: 1;
+    min-width: 140px;
+  }
+
+  .opt-group label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+
+  .opt-group select, .opt-group input[type="text"] {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    padding: 0.45rem 0.65rem;
+    border-radius: 3px;
+    appearance: none;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .opt-group select:focus, .opt-group input[type="text"]:focus {
+    border-color: var(--accent);
+  }
+
+  /* Action button */
+  .btn-start {
+    margin-top: 1.5rem;
+    width: 100%;
+    background: var(--accent);
+    color: #000;
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    border: none;
+    border-radius: 3px;
+    padding: 0.85rem 1.5rem;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+
+  .btn-start:hover:not(:disabled) { opacity: 0.88; }
+  .btn-start:active:not(:disabled) { transform: scale(0.99); }
+  .btn-start:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* Progress panel */
+  .progress-panel {
+    margin-top: 2rem;
+    display: none;
+  }
+
+  .progress-panel.visible { display: block; }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+  }
+
+  .stat {
+    background: var(--surface);
+    padding: 0.9rem 1rem;
+  }
+
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.3rem;
+  }
+
+  .stat-value {
+    font-family: var(--mono);
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .stat-value.accent { color: var(--accent); }
+
+  /* Bar */
+  .bar-wrap {
+    height: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+  }
+
+  .bar-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
+
+  .bar-pct {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-align: right;
+    margin-bottom: 1rem;
+  }
+
+  /* Log */
+  .log {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.75rem 1rem;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--muted);
+    height: 90px;
+    overflow-y: auto;
+    line-height: 1.6;
+    scroll-behavior: smooth;
+  }
+
+  .log-line { color: var(--text); }
+  .log-line.ok { color: var(--accent); }
+  .log-line.err { color: var(--danger); }
+
+  /* Download */
+  .download-area {
+    margin-top: 1.5rem;
+    display: none;
+    text-align: center;
+  }
+
+  .download-area.visible { display: block; }
+
+  .btn-download {
+    display: inline-block;
+    padding: 0.9rem 2.5rem;
+    background: transparent;
+    border: 1.5px solid var(--accent);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    border-radius: 3px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .btn-download:hover {
+    background: var(--accent);
+    color: #000;
+  }
+
+  .done-note {
+    margin-top: 0.6rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  /* Pulse animation on bar when running */
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 4px var(--accent2); }
+    50%       { box-shadow: 0 0 10px var(--accent); }
+  }
+
+  .bar-fill.running { animation: pulse-glow 1.5s ease-in-out infinite; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bar-fill.running { animation: none; }
+  }
+
+  @media (max-width: 480px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="eyebrow">Utilitaire local · Aucun upload réseau</div>
+    <h1>MP3 <span>→</span> ZIP</h1>
+    <p class="subtitle">Compresse un dossier entier de fichiers MP3 directement dans votre navigateur.</p>
+  </header>
+
+  <!-- Drop / select -->
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".mp3,audio/mpeg" multiple webkitdirectory>
+    <div class="drop-icon">🎵</div>
+    <div class="drop-label">
+      <strong>Choisir le dossier</strong> ou glisser-déposer ici
+    </div>
+  </div>
+  <div class="file-count" id="fileCount"></div>
+
+  <!-- Options -->
+  <div class="options">
+    <div class="opt-group">
+      <label>Nom du ZIP</label>
+      <input type="text" id="zipName" value="musiques.zip" placeholder="musiques.zip">
+    </div>
+    <div class="opt-group">
+      <label>Compression</label>
+      <select id="compression">
+        <option value="STORE" selected>STORE — rapide, taille réelle</option>
+        <option value="DEFLATE">DEFLATE — compression légère</option>
+      </select>
+    </div>
+    <div class="opt-group">
+      <label>Lot (fichiers/cycle)</label>
+      <select id="batchSize">
+        <option value="200">200</option>
+        <option value="500" selected>500</option>
+        <option value="1000">1 000</option>
+      </select>
+    </div>
+  </div>
+
+  <button class="btn-start" id="btnStart" disabled>Sélectionner un dossier d'abord</button>
+
+  <!-- Progress -->
+  <div class="progress-panel" id="progressPanel">
+    <div class="stats-grid">
+      <div class="stat">
+        <div class="stat-label">Traités</div>
+        <div class="stat-value accent" id="statDone">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Total</div>
+        <div class="stat-value" id="statTotal">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Temps restant</div>
+        <div class="stat-value accent" id="statEta">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Vitesse</div>
+        <div class="stat-value" id="statSpeed">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Taille ajoutée</div>
+        <div class="stat-value" id="statSize">0 Mo</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Temps écoulé</div>
+        <div class="stat-value" id="statElapsed">0s</div>
+      </div>
+    </div>
+
+    <div class="bar-wrap"><div class="bar-fill" id="barFill"></div></div>
+    <div class="bar-pct" id="barPct">0%</div>
+
+    <div class="log" id="log"></div>
+  </div>
+
+  <!-- Download -->
+  <div class="download-area" id="downloadArea">
+    <a class="btn-download" id="btnDownload" href="#" download>⬇ Télécharger le ZIP</a>
+    <p class="done-note" id="doneNote"></p>
+  </div>
+
+</div>
+
+<script>
+  const fileInput   = document.getElementById('fileInput');
+  const dropZone    = document.getElementById('dropZone');
+  const fileCount   = document.getElementById('fileCount');
+  const btnStart    = document.getElementById('btnStart');
+  const progressPanel = document.getElementById('progressPanel');
+  const barFill     = document.getElementById('barFill');
+  const barPct      = document.getElementById('barPct');
+  const statDone    = document.getElementById('statDone');
+  const statTotal   = document.getElementById('statTotal');
+  const statEta     = document.getElementById('statEta');
+  const statSpeed   = document.getElementById('statSpeed');
+  const statSize    = document.getElementById('statSize');
+  const statElapsed = document.getElementById('statElapsed');
+  const logEl       = document.getElementById('log');
+  const downloadArea= document.getElementById('downloadArea');
+  const btnDownload = document.getElementById('btnDownload');
+  const doneNote    = document.getElementById('doneNote');
+
+  let selectedFiles = [];
+
+  // Drag over style
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    handleDropItems(e.dataTransfer.items);
+  });
+
+  async function handleDropItems(items) {
+    const files = [];
+    for (const item of items) {
+      const entry = item.webkitGetAsEntry?.();
+      if (entry) await traverseEntry(entry, files);
+      else if (item.getAsFile) {
+        const f = item.getAsFile();
+        if (f && f.name.toLowerCase().endsWith('.mp3')) files.push(f);
+      }
+    }
+    setFiles(files);
+  }
+
+  async function traverseEntry(entry, files) {
+    if (entry.isFile) {
+      const file = await new Promise(res => entry.file(res));
+      if (file.name.toLowerCase().endsWith('.mp3')) files.push(file);
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      let batch;
+      do {
+        batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+        for (const child of batch) await traverseEntry(child, files);
+      } while (batch.length > 0);
+    }
+  }
+
+  fileInput.addEventListener('change', () => {
+    const arr = Array.from(fileInput.files).filter(f => f.name.toLowerCase().endsWith('.mp3'));
+    setFiles(arr);
+  });
+
+  function setFiles(arr) {
+    selectedFiles = arr;
+    if (arr.length === 0) {
+      fileCount.textContent = '';
+      btnStart.disabled = true;
+      btnStart.textContent = 'Sélectionner un dossier d\'abord';
+    } else {
+      const mb = (arr.reduce((s, f) => s + f.size, 0) / 1048576).toFixed(0);
+      fileCount.textContent = `${arr.length.toLocaleString('fr-FR')} fichiers MP3 détectés · ${Number(mb).toLocaleString('fr-FR')} Mo`;
+      btnStart.disabled = false;
+      btnStart.textContent = `Créer le ZIP (${arr.length.toLocaleString('fr-FR')} fichiers)`;
+    }
+  }
+
+  function fmt(sec) {
+    sec = Math.round(sec);
+    if (sec < 60) return `${sec}s`;
+    const m = Math.floor(sec / 60), s = sec % 60;
+    if (m < 60) return `${m}m ${s}s`;
+    const h = Math.floor(m / 60), rm = m % 60;
+    return `${h}h ${rm}m`;
+  }
+
+  function fmtMb(bytes) {
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' Ko';
+    if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' Mo';
+    return (bytes / 1073741824).toFixed(2) + ' Go';
+  }
+
+  function log(msg, cls = '') {
+    const line = document.createElement('div');
+    line.className = 'log-line' + (cls ? ' ' + cls : '');
+    line.textContent = msg;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  btnStart.addEventListener('click', startZip);
+
+  async function startZip() {
+    if (!selectedFiles.length) return;
+
+    btnStart.disabled = true;
+    downloadArea.classList.remove('visible');
+    logEl.innerHTML = '';
+
+    const files = selectedFiles;
+    const total = files.length;
+    const compressionType = document.getElementById('compression').value === 'DEFLATE'
+      ? JSZip.prototype._data?.compression || 'DEFLATE' : 'STORE';
+    const batchSize = parseInt(document.getElementById('batchSize').value);
+    const zipFilename = (document.getElementById('zipName').value.trim() || 'musiques') + '';
+    const finalName = zipFilename.endsWith('.zip') ? zipFilename : zipFilename + '.zip';
+
+    progressPanel.classList.add('visible');
+    barFill.classList.add('running');
+    statTotal.textContent = total.toLocaleString('fr-FR');
+
+    const zip = new JSZip();
+    const startTs = performance.now();
+    let done = 0;
+    let bytesDone = 0;
+
+    log(`Démarrage · ${total.toLocaleString('fr-FR')} fichiers`);
+
+    // Elapsed timer
+    const elapsedTimer = setInterval(() => {
+      statElapsed.textContent = fmt((performance.now() - startTs) / 1000);
+    }, 1000);
+
+    // Process in batches to keep UI responsive
+    for (let i = 0; i < files.length; i += batchSize) {
+      const batch = files.slice(i, i + batchSize);
+
+      await Promise.all(batch.map(file => {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = e => {
+            try {
+              zip.file(file.name, e.target.result, { compression: compressionType, binary: true });
+            } catch(err) { /* skip */ }
+            done++;
+            bytesDone += file.size;
+            resolve();
+          };
+          reader.onerror = () => { done++; resolve(); };
+          reader.readAsArrayBuffer(file);
+        });
+      }));
+
+      // Update UI
+      const pct = (done / total * 100).toFixed(1);
+      barFill.style.width = pct + '%';
+      barPct.textContent = pct + '%';
+      statDone.textContent = done.toLocaleString('fr-FR');
+      statSize.textContent = fmtMb(bytesDone);
+
+      const elapsed = (performance.now() - startTs) / 1000;
+      const rate = done / elapsed; // files/s
+      statSpeed.textContent = rate.toFixed(0) + ' f/s';
+      const remaining = (total - done) / rate;
+      statEta.textContent = isFinite(remaining) ? fmt(remaining) : '…';
+
+      if (done % (batchSize * 4) === 0 || done === total) {
+        log(`${done.toLocaleString('fr-FR')} / ${total.toLocaleString('fr-FR')} · ETA ${isFinite(remaining) ? fmt(remaining) : '…'}`);
+      }
+
+      // Yield to browser
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    log('Génération du fichier ZIP…');
+    statEta.textContent = '…';
+
+    try {
+      const blob = await zip.generateAsync({
+        type: 'blob',
+        compression: compressionType,
+        compressionOptions: { level: compressionType === 'DEFLATE' ? 6 : undefined },
+        streamFiles: true,
+      }, meta => {
+        const p = meta.percent.toFixed(1);
+        barFill.style.width = p + '%';
+        barPct.textContent = `Finalisation : ${p}%`;
+      });
+
+      clearInterval(elapsedTimer);
+      barFill.classList.remove('running');
+      barFill.style.width = '100%';
+      barPct.textContent = '100%';
+      statEta.textContent = '✓';
+
+      const url = URL.createObjectURL(blob);
+      btnDownload.href = url;
+      btnDownload.download = finalName;
+
+      const totalElapsed = ((performance.now() - startTs) / 1000).toFixed(1);
+      doneNote.textContent = `${total.toLocaleString('fr-FR')} fichiers · ${fmtMb(blob.size)} · ${totalElapsed}s au total`;
+      downloadArea.classList.add('visible');
+
+      log(`✓ Terminé en ${totalElapsed}s — ${fmtMb(blob.size)}`, 'ok');
+    } catch(err) {
+      clearInterval(elapsedTimer);
+      log('Erreur lors de la génération : ' + err.message, 'err');
+    }
+
+    btnStart.disabled = false;
+    btnStart.textContent = `Recréer le ZIP (${selectedFiles.length.toLocaleString('fr-FR')} fichiers)`;
+  }
+</script>
+</body>
+</html>
