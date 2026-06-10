@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MP3 → Google Drive</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0d0d0d;
+    --surface: #161616;
+    --border:  #2a2a2a;
+    --accent:  #00e5a0;
+    --accent2: #005f43;
+    --text:    #e8e8e8;
+    --muted:   #666;
+    --danger:  #ff4d4d;
+    --mono:    'IBM Plex Mono', monospace;
+    --sans:    'IBM Plex Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+
+  .container { width: 100%; max-width: 700px; }
+
+  header { margin-bottom: 3rem; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.6rem;
+  }
+
+  h1 {
+    font-family: var(--mono);
+    font-size: clamp(1.8rem, 5vw, 3rem);
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  h1 span { color: var(--accent); }
+
+  .subtitle {
+    margin-top: 0.75rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-weight: 300;
+  }
+
+  /* Auth panel */
+  .auth-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .auth-status {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .auth-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+
+  .auth-dot.connected { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+  .auth-text {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .auth-text.connected { color: var(--text); }
+
+  .btn-auth {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    padding: 0.5rem 1.2rem;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn-auth:hover { background: var(--accent); color: #000; }
+  .btn-auth.disconnect { border-color: var(--danger); color: var(--danger); }
+  .btn-auth.disconnect:hover { background: var(--danger); color: #fff; }
+
+  /* Config panel */
+  .config-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .config-title {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1rem;
+  }
+
+  .config-row {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+
+  .opt-group { flex: 1; min-width: 160px; }
+
+  .opt-group label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+
+  .opt-group input[type="text"],
+  .opt-group select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    padding: 0.45rem 0.65rem;
+    border-radius: 3px;
+    appearance: none;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .opt-group input[type="text"]:focus,
+  .opt-group select:focus { border-color: var(--accent); }
+
+  .opt-group small {
+    display: block;
+    margin-top: 0.3rem;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--muted);
+  }
+
+  /* Drop zone */
+  .drop-zone {
+    border: 1.5px dashed var(--border);
+    border-radius: 4px;
+    padding: 2.5rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 1rem;
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(0,229,160,0.04);
+  }
+
+  .drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+
+  .drop-icon { font-size: 2.5rem; margin-bottom: 0.75rem; line-height: 1; }
+
+  .drop-label {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .drop-label strong { color: var(--accent); font-weight: 600; }
+
+  .file-count {
+    margin-top: 0.5rem;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--accent);
+    min-height: 1.2em;
+  }
+
+  /* Start button */
+  .btn-start {
+    width: 100%;
+    background: var(--accent);
+    color: #000;
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    border: none;
+    border-radius: 3px;
+    padding: 0.85rem 1.5rem;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    margin-bottom: 1.5rem;
+  }
+
+  .btn-start:hover:not(:disabled) { opacity: 0.88; }
+  .btn-start:active:not(:disabled) { transform: scale(0.99); }
+  .btn-start:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* Progress */
+  .progress-panel { display: none; }
+  .progress-panel.visible { display: block; }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+  }
+
+  .stat { background: var(--surface); padding: 0.9rem 1rem; }
+
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.3rem;
+  }
+
+  .stat-value {
+    font-family: var(--mono);
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .stat-value.accent { color: var(--accent); }
+
+  .bar-wrap {
+    height: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+  }
+
+  .bar-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
+
+  .bar-pct {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-align: right;
+    margin-bottom: 1rem;
+  }
+
+  .log {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.75rem 1rem;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--muted);
+    height: 120px;
+    overflow-y: auto;
+    line-height: 1.6;
+    scroll-behavior: smooth;
+  }
+
+  .log-line { color: var(--text); }
+  .log-line.ok { color: var(--accent); }
+  .log-line.err { color: var(--danger); }
+  .log-line.skip { color: #f0a500; }
+
+  /* Done banner */
+  .done-banner {
+    display: none;
+    margin-top: 1.5rem;
+    background: rgba(0,229,160,0.07);
+    border: 1px solid var(--accent2);
+    border-radius: 4px;
+    padding: 1.2rem 1.5rem;
+    text-align: center;
+  }
+
+  .done-banner.visible { display: block; }
+
+  .done-banner a {
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .done-banner a:hover { text-decoration: underline; }
+
+  .done-note {
+    margin-top: 0.5rem;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  /* Setup guide */
+  .setup-guide {
+    margin-top: 2rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .setup-toggle {
+    width: 100%;
+    background: var(--surface);
+    border: none;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    text-align: left;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .setup-toggle:hover { color: var(--text); }
+
+  .setup-body {
+    display: none;
+    padding: 1.25rem;
+    background: var(--bg);
+    font-size: 0.82rem;
+    line-height: 1.7;
+    color: var(--muted);
+  }
+
+  .setup-body.open { display: block; }
+  .setup-body strong { color: var(--text); }
+  .setup-body code {
+    font-family: var(--mono);
+    background: var(--surface);
+    padding: 0.1em 0.4em;
+    border-radius: 2px;
+    font-size: 0.78rem;
+    color: var(--accent);
+  }
+  .setup-body ol { padding-left: 1.25rem; }
+  .setup-body li { margin-bottom: 0.4rem; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="eyebrow">Outil local · 100% client</div>
+    <h1>MP3 <span>→ Drive</span></h1>
+    <p class="subtitle">Upload vos fichiers MP3 directement vers un dossier Google Drive</p>
+  </header>
+
+  <!-- Auth -->
+  <div class="auth-panel">
+    <div class="auth-status">
+      <div class="auth-dot" id="authDot"></div>
+      <div class="auth-text" id="authText">Non connecté à Google Drive</div>
+    </div>
+    <button class="btn-auth" id="btnAuth">Se connecter</button>
+  </div>
+
+  <!-- Config -->
+  <div class="config-panel">
+    <div class="config-title">Configuration</div>
+    <div class="config-row">
+      <div class="opt-group">
+        <label>Client ID Google</label>
+        <input type="text" id="clientId" placeholder="xxxx.apps.googleusercontent.com">
+        <small>OAuth 2.0 · <a href="https://console.cloud.google.com" target="_blank" style="color:var(--accent)">console.cloud.google.com</a></small>
+      </div>
+      <div class="opt-group">
+        <label>Dossier Drive (nom ou ID)</label>
+        <input type="text" id="folderName" value="Musiques" placeholder="Musiques">
+        <small>Sera créé s'il n'existe pas</small>
+      </div>
+      <div class="opt-group">
+        <label>Concurrence</label>
+        <select id="concurrency">
+          <option value="1">1 — séquentiel</option>
+          <option value="3" selected>3 — équilibré</option>
+          <option value="5">5 — rapide</option>
+          <option value="10">10 — max</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Drop zone -->
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" multiple accept=".mp3,audio/mpeg" webkitdirectory>
+    <div class="drop-icon">🎵</div>
+    <div class="drop-label"><strong>Glissez vos MP3</strong> ou cliquez pour parcourir</div>
+    <div class="drop-label" style="margin-top:0.3rem">Dossiers acceptés (récursif)</div>
+    <div class="file-count" id="fileCount"></div>
+  </div>
+
+  <button class="btn-start" id="btnStart" disabled>Connectez-vous d'abord</button>
+
+  <!-- Progress -->
+  <div class="progress-panel" id="progressPanel">
+    <div class="stats-grid">
+      <div class="stat">
+        <div class="stat-label">Uploadés</div>
+        <div class="stat-value accent" id="statDone">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Total</div>
+        <div class="stat-value" id="statTotal">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Temps restant</div>
+        <div class="stat-value accent" id="statEta">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Vitesse</div>
+        <div class="stat-value" id="statSpeed">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Envoyé</div>
+        <div class="stat-value" id="statSize">0 Mo</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Temps écoulé</div>
+        <div class="stat-value" id="statElapsed">0s</div>
+      </div>
+    </div>
+
+    <div class="bar-wrap"><div class="bar-fill" id="barFill"></div></div>
+    <div class="bar-pct" id="barPct">0%</div>
+
+    <div class="log" id="log"></div>
+  </div>
+
+  <!-- Done -->
+  <div class="done-banner" id="doneBanner">
+    <a id="driveLink" href="#" target="_blank">📂 Ouvrir le dossier Drive</a>
+    <p class="done-note" id="doneNote"></p>
+  </div>
+
+  <!-- Setup guide -->
+  <div class="setup-guide">
+    <button class="setup-toggle" id="setupToggle">
+      <span>Comment configurer le Client ID Google ?</span>
+      <span id="setupArrow">▼</span>
+    </button>
+    <div class="setup-body" id="setupBody">
+      <ol>
+        <li>Allez sur <strong>console.cloud.google.com</strong> → créez un projet (ou choisissez-en un existant)</li>
+        <li>Menu <strong>APIs & Services → Bibliothèque</strong> → activez <strong>Google Drive API</strong></li>
+        <li>Menu <strong>APIs & Services → Identifiants</strong> → <strong>+ Créer des identifiants → ID client OAuth 2.0</strong></li>
+        <li>Type d'application : <strong>Application Web</strong></li>
+        <li>Dans <em>Origines JavaScript autorisées</em>, ajoutez <code>http://localhost</code> et l'URL où vous ouvrez ce fichier (ex: <code>file://</code> ou votre domaine)</li>
+        <li>Copiez le <strong>Client ID</strong> (format <code>xxx.apps.googleusercontent.com</code>) et collez-le ci-dessus</li>
+        <li>Dans <strong>Écran de consentement OAuth</strong>, ajoutez votre email comme utilisateur test si l'app est en mode test</li>
+      </ol>
+      <p style="margin-top:0.75rem">⚠️ Le Client ID est stocké <strong>uniquement dans votre navigateur</strong>, aucune donnée ne transite par un serveur externe.</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async></script>
+
+<script>
+  // ── DOM refs ──────────────────────────────────────────────────────────────
+  const fileInput    = document.getElementById('fileInput');
+  const dropZone     = document.getElementById('dropZone');
+  const fileCount    = document.getElementById('fileCount');
+  const btnStart     = document.getElementById('btnStart');
+  const btnAuth      = document.getElementById('btnAuth');
+  const authDot      = document.getElementById('authDot');
+  const authText     = document.getElementById('authText');
+  const progressPanel= document.getElementById('progressPanel');
+  const barFill      = document.getElementById('barFill');
+  const barPct       = document.getElementById('barPct');
+  const statDone     = document.getElementById('statDone');
+  const statTotal    = document.getElementById('statTotal');
+  const statEta      = document.getElementById('statEta');
+  const statSpeed    = document.getElementById('statSpeed');
+  const statSize     = document.getElementById('statSize');
+  const statElapsed  = document.getElementById('statElapsed');
+  const logEl        = document.getElementById('log');
+  const doneBanner   = document.getElementById('doneBanner');
+  const driveLink    = document.getElementById('driveLink');
+  const doneNote     = document.getElementById('doneNote');
+  const clientIdInput= document.getElementById('clientId');
+  const folderInput  = document.getElementById('folderName');
+  const setupToggle  = document.getElementById('setupToggle');
+  const setupBody    = document.getElementById('setupBody');
+  const setupArrow   = document.getElementById('setupArrow');
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  let accessToken   = null;
+  let selectedFiles = [];
+  const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+
+  // Persist client ID
+  const saved = localStorage.getItem('gdrive_client_id');
+  if (saved) clientIdInput.value = saved;
+  clientIdInput.addEventListener('change', () => {
+    localStorage.setItem('gdrive_client_id', clientIdInput.value.trim());
+  });
+
+  // ── Setup guide toggle ────────────────────────────────────────────────────
+  setupToggle.addEventListener('click', () => {
+    const open = setupBody.classList.toggle('open');
+    setupArrow.textContent = open ? '▲' : '▼';
+  });
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  function getClientId() {
+    return clientIdInput.value.trim();
+  }
+
+  function setConnected(email) {
+    authDot.classList.add('connected');
+    authText.className = 'auth-text connected';
+    authText.textContent = `Connecté · ${email}`;
+    btnAuth.textContent = 'Déconnecter';
+    btnAuth.className = 'btn-auth disconnect';
+    updateStartBtn();
+  }
+
+  function setDisconnected() {
+    accessToken = null;
+    authDot.classList.remove('connected');
+    authText.className = 'auth-text';
+    authText.textContent = 'Non connecté à Google Drive';
+    btnAuth.textContent = 'Se connecter';
+    btnAuth.className = 'btn-auth';
+    updateStartBtn();
+  }
+
+  btnAuth.addEventListener('click', () => {
+    if (accessToken) { setDisconnected(); return; }
+    const clientId = getClientId();
+    if (!clientId) { alert('Veuillez d\'abord saisir votre Client ID Google.'); return; }
+
+    // Use tokenClient (GIS implicit flow)
+    const tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: SCOPE,
+      callback: (resp) => {
+        if (resp.error) { console.error(resp); alert('Erreur OAuth : ' + resp.error); return; }
+        accessToken = resp.access_token;
+        // Get user info
+        fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+          headers: { Authorization: 'Bearer ' + accessToken }
+        })
+        .then(r => r.json())
+        .then(info => setConnected(info.email || 'utilisateur'))
+        .catch(() => setConnected('utilisateur'));
+      }
+    });
+    tokenClient.requestAccessToken();
+  });
+
+  // ── File selection ────────────────────────────────────────────────────────
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    handleDropItems(e.dataTransfer.items);
+  });
+
+  async function handleDropItems(items) {
+    const files = [];
+    for (const item of items) {
+      const entry = item.webkitGetAsEntry?.();
+      if (entry) await traverseEntry(entry, files);
+      else if (item.getAsFile) {
+        const f = item.getAsFile();
+        if (f && f.name.toLowerCase().endsWith('.mp3')) files.push(f);
+      }
+    }
+    setFiles(files);
+  }
+
+  async function traverseEntry(entry, files) {
+    if (entry.isFile) {
+      const file = await new Promise(res => entry.file(res));
+      if (file.name.toLowerCase().endsWith('.mp3')) files.push(file);
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      let batch;
+      do {
+        batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+        for (const child of batch) await traverseEntry(child, files);
+      } while (batch.length > 0);
+    }
+  }
+
+  fileInput.addEventListener('change', () => {
+    const arr = Array.from(fileInput.files).filter(f => f.name.toLowerCase().endsWith('.mp3'));
+    setFiles(arr);
+  });
+
+  function setFiles(arr) {
+    selectedFiles = arr;
+    if (!arr.length) {
+      fileCount.textContent = '';
+    } else {
+      const mb = (arr.reduce((s, f) => s + f.size, 0) / 1048576).toFixed(0);
+      fileCount.textContent = `${arr.length.toLocaleString('fr-FR')} fichiers MP3 · ${Number(mb).toLocaleString('fr-FR')} Mo`;
+    }
+    updateStartBtn();
+  }
+
+  function updateStartBtn() {
+    if (!accessToken) {
+      btnStart.disabled = true;
+      btnStart.textContent = 'Connectez-vous d\'abord';
+    } else if (!selectedFiles.length) {
+      btnStart.disabled = true;
+      btnStart.textContent = 'Sélectionner des fichiers MP3';
+    } else {
+      btnStart.disabled = false;
+      btnStart.textContent = `Envoyer ${selectedFiles.length.toLocaleString('fr-FR')} fichiers vers Drive`;
+    }
+  }
+
+  // ── Utils ─────────────────────────────────────────────────────────────────
+  function fmt(sec) {
+    sec = Math.round(sec);
+    if (sec < 60) return `${sec}s`;
+    const m = Math.floor(sec / 60), s = sec % 60;
+    if (m < 60) return `${m}m ${s}s`;
+    return `${Math.floor(m/60)}h ${m%60}m`;
+  }
+
+  function fmtMb(bytes) {
+    if (bytes < 1048576) return (bytes/1024).toFixed(1)+' Ko';
+    if (bytes < 1073741824) return (bytes/1048576).toFixed(1)+' Mo';
+    return (bytes/1073741824).toFixed(2)+' Go';
+  }
+
+  function log(msg, cls='') {
+    const line = document.createElement('div');
+    line.className = 'log-line' + (cls ? ' '+cls : '');
+    line.textContent = msg;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // ── Drive API helpers ──────────────────────────────────────────────────────
+  async function driveRequest(url, options={}) {
+    const headers = { Authorization: 'Bearer ' + accessToken, ...(options.headers||{}) };
+    const resp = await fetch(url, { ...options, headers });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error?.message || `HTTP ${resp.status}`);
+    }
+    return resp.json();
+  }
+
+  async function getOrCreateFolder(name) {
+    // Check if it already exists
+    const q = `name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+    const search = await driveRequest(
+      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,webViewLink)`
+    );
+    if (search.files.length) {
+      log(`📁 Dossier existant trouvé : "${name}"`);
+      return search.files[0];
+    }
+    // Create it
+    const folder = await driveRequest('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder' })
+    });
+    log(`📁 Dossier créé : "${name}"`, 'ok');
+    return folder;
+  }
+
+  async function uploadFile(file, folderId) {
+    // Multipart upload
+    const metadata = { name: file.name, parents: [folderId] };
+    const boundary = '-------mp3upload' + Date.now();
+    const delimiter = '\r\n--' + boundary + '\r\n';
+    const closeDelimiter = '\r\n--' + boundary + '--';
+
+    const metaPart = delimiter +
+      'Content-Type: application/json\r\n\r\n' +
+      JSON.stringify(metadata);
+
+    const arraybuffer = await file.arrayBuffer();
+    const encoder = new TextEncoder();
+
+    // Build multipart body
+    const metaBytes = encoder.encode(metaPart + '\r\n' + 'Content-Type: audio/mpeg\r\n\r\n');
+    const closeBytes = encoder.encode(closeDelimiter);
+    const body = new Uint8Array(metaBytes.byteLength + arraybuffer.byteLength + closeBytes.byteLength);
+    body.set(metaBytes, 0);
+    body.set(new Uint8Array(arraybuffer), metaBytes.byteLength);
+    body.set(closeBytes, metaBytes.byteLength + arraybuffer.byteLength);
+
+    const resp = await fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ' + accessToken,
+          'Content-Type': `multipart/related; boundary="${boundary}"`,
+        },
+        body: body.buffer
+      }
+    );
+    if (!resp.ok) {
+      const e = await resp.json().catch(() => ({}));
+      throw new Error(e.error?.message || `HTTP ${resp.status}`);
+    }
+    return resp.json();
+  }
+
+  // ── Main upload flow ───────────────────────────────────────────────────────
+  btnStart.addEventListener('click', startUpload);
+
+  async function startUpload() {
+    if (!accessToken || !selectedFiles.length) return;
+
+    btnStart.disabled = true;
+    doneBanner.classList.remove('visible');
+    logEl.innerHTML = '';
+    progressPanel.classList.add('visible');
+
+    const files = [...selectedFiles];
+    const total = files.length;
+    const concurrency = parseInt(document.getElementById('concurrency').value);
+    const folderName = folderInput.value.trim() || 'Musiques';
+
+    statTotal.textContent = total.toLocaleString('fr-FR');
+    barFill.style.width = '0%';
+
+    log(`Démarrage · ${total.toLocaleString('fr-FR')} fichiers`);
+
+    let folderId, folderWebLink;
+    try {
+      const folder = await getOrCreateFolder(folderName);
+      folderId = folder.id;
+      // Get webViewLink if not returned
+      const detail = await driveRequest(
+        `https://www.googleapis.com/drive/v3/files/${folderId}?fields=webViewLink`
+      );
+      folderWebLink = detail.webViewLink;
+    } catch(e) {
+      log('Erreur dossier : ' + e.message, 'err');
+      btnStart.disabled = false;
+      updateStartBtn();
+      return;
+    }
+
+    const startTs = performance.now();
+    let done = 0, errors = 0, bytesDone = 0;
+
+    const elapsedTimer = setInterval(() => {
+      statElapsed.textContent = fmt((performance.now() - startTs) / 1000);
+    }, 1000);
+
+    // Semaphore-based concurrency
+    async function uploadWorker(file) {
+      try {
+        await uploadFile(file, folderId);
+        bytesDone += file.size;
+        if (done % 5 === 0 || done === total - concurrency) {
+          log(`✓ ${file.name}`, 'ok');
+        }
+      } catch(e) {
+        errors++;
+        log(`✗ ${file.name} — ${e.message}`, 'err');
+      }
+      done++;
+      // Update UI
+      const pct = (done / total * 100).toFixed(1);
+      barFill.style.width = pct + '%';
+      barPct.textContent = pct + '%';
+      statDone.textContent = done.toLocaleString('fr-FR');
+      statSize.textContent = fmtMb(bytesDone);
+      const elapsed = (performance.now() - startTs) / 1000;
+      const rate = done / elapsed;
+      statSpeed.textContent = rate.toFixed(1) + ' f/s';
+      const rem = (total - done) / rate;
+      statEta.textContent = isFinite(rem) ? fmt(rem) : '…';
+    }
+
+    // Run with concurrency limit
+    const queue = [...files];
+    async function runQueue() {
+      while (queue.length) {
+        const batch = queue.splice(0, concurrency);
+        await Promise.all(batch.map(uploadWorker));
+      }
+    }
+
+    try {
+      await runQueue();
+    } catch(e) {
+      log('Erreur inattendue : ' + e.message, 'err');
+    }
+
+    clearInterval(elapsedTimer);
+    barFill.style.width = '100%';
+    barPct.textContent = '100%';
+    statEta.textContent = '✓';
+
+    const totalElapsed = ((performance.now() - startTs) / 1000).toFixed(1);
+    const msg = `✓ ${done - errors}/${total} fichiers uploadés · ${errors ? errors + ' erreurs · ' : ''}${totalElapsed}s`;
+    log(msg, errors ? 'skip' : 'ok');
+
+    if (folderWebLink) {
+      driveLink.href = folderWebLink;
+      doneNote.textContent = `${done - errors} fichiers · ${fmtMb(bytesDone)} · ${totalElapsed}s`;
+      doneBanner.classList.add('visible');
+    }
+
+    btnStart.disabled = false;
+    btnStart.textContent = `Réenvoyer (${selectedFiles.length.toLocaleString('fr-FR')} fichiers)`;
+  }
+</script>
+</body>
+</html>
