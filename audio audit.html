@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audit Audio — Dictionnaire Vocabulaire</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
+
+  :root {
+    --bg: #0e0f13;
+    --surface: #16181f;
+    --border: #252830;
+    --accent: #4f9cf9;
+    --green: #3ecf8e;
+    --yellow: #f5c842;
+    --red: #f0605a;
+    --muted: #5a5f72;
+    --text: #dde1ec;
+    --text-dim: #8b90a7;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 40px 24px 80px;
+  }
+
+  header {
+    max-width: 900px;
+    margin: 0 auto 48px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 28px;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+
+  h1 {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+
+  h1 span { color: var(--text-dim); font-weight: 300; }
+
+  .subtitle {
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--text-dim);
+  }
+
+  .container { max-width: 900px; margin: 0 auto; }
+
+  /* Upload zone */
+  .upload-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .drop-zone {
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    padding: 28px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+
+  .drop-zone:hover, .drop-zone.active {
+    border-color: var(--accent);
+    background: #1a1e2a;
+  }
+
+  .drop-zone input { display: none; }
+
+  .drop-icon {
+    font-size: 28px;
+    margin-bottom: 10px;
+    display: block;
+  }
+
+  .drop-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .drop-sub {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .drop-zone.loaded {
+    border-color: var(--green);
+    border-style: solid;
+  }
+
+  .drop-zone.loaded .drop-icon::after {
+    content: ' ✓';
+    color: var(--green);
+    font-size: 16px;
+  }
+
+  .status-tag {
+    display: inline-block;
+    margin-top: 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: #1f2435;
+    color: var(--text-dim);
+  }
+
+  .status-tag.ok { background: #0e2a1e; color: var(--green); }
+  .status-tag.warn { background: #2a220e; color: var(--yellow); }
+
+  /* Run button */
+  .run-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--accent);
+    color: #0a0d14;
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    letter-spacing: 0.01em;
+    transition: opacity 0.2s, transform 0.1s;
+    margin-bottom: 40px;
+  }
+
+  .run-btn:hover { opacity: 0.9; }
+  .run-btn:active { transform: scale(0.99); }
+  .run-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* Progress */
+  .progress-wrap {
+    display: none;
+    margin-bottom: 40px;
+  }
+
+  .progress-label {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .progress-bar-bg {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.1s;
+  }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 32px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 18px;
+  }
+
+  .stat-card .stat-val {
+    font-family: var(--mono);
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .stat-card .stat-key {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .stat-card.c-blue .stat-val { color: var(--accent); }
+  .stat-card.c-green .stat-val { color: var(--green); }
+  .stat-card.c-yellow .stat-val { color: var(--yellow); }
+  .stat-card.c-red .stat-val { color: var(--red); }
+
+  /* Section */
+  .section {
+    margin-bottom: 32px;
+  }
+
+  .section-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Level breakdown */
+  .level-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .level-table th {
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    padding: 6px 12px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+  }
+
+  .level-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+  }
+
+  .level-table tr:last-child td { border-bottom: none; }
+
+  .bar-cell { width: 180px; }
+
+  .mini-bar-bg {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .mini-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--accent);
+    transition: width 0.4s ease;
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .pill-green { background: #0e2a1e; color: var(--green); }
+  .pill-yellow { background: #2a220e; color: var(--yellow); }
+  .pill-red { background: #2a0e0e; color: var(--red); }
+
+  /* Missing list */
+  .missing-list-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .missing-toolbar {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .missing-toolbar input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 12px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: var(--mono);
+    outline: none;
+  }
+
+  .missing-toolbar input:focus { border-color: var(--accent); }
+
+  .export-btn {
+    padding: 7px 14px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-dim);
+    font-size: 12px;
+    font-family: var(--sans);
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+  }
+
+  .export-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .missing-list {
+    max-height: 340px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .missing-item {
+    display: grid;
+    grid-template-columns: 48px 1fr 60px 80px;
+    gap: 12px;
+    padding: 9px 16px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 12px;
+    align-items: center;
+  }
+
+  .missing-item:last-child { border-bottom: none; }
+  .missing-item .id { color: var(--muted); }
+  .missing-item .word { color: var(--text); }
+  .missing-item .level { }
+  .missing-item .expected { color: var(--text-dim); word-break: break-all; }
+
+  .empty-state {
+    padding: 40px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+
+  /* Size chart */
+  .size-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  .size-row:last-child { border-bottom: none; }
+  .size-row .lbl { color: var(--text-dim); }
+  .size-row .val { font-family: var(--mono); color: var(--text); }
+
+  /* Hidden until report */
+  .report-section { display: none; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 640px) {
+    .upload-grid { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .missing-item { grid-template-columns: 40px 1fr 50px; }
+    .missing-item .expected { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <header>
+    <div class="eyebrow">Outil d'audit</div>
+    <h1>Vérification Audio <span>/ Dictionnaire Vocabulaire</span></h1>
+    <p class="subtitle">Charge ton JSON + le dossier MP3 pour générer un rapport complet de couverture audio.</p>
+  </header>
+
+  <!-- UPLOAD -->
+  <div class="upload-grid">
+    <div class="drop-zone" id="jsonZone" onclick="document.getElementById('jsonInput').click()">
+      <input type="file" id="jsonInput" accept=".json">
+      <span class="drop-icon">📄</span>
+      <div class="drop-label">Fichier JSON</div>
+      <div class="drop-sub">vocabulary.json</div>
+      <span class="status-tag" id="jsonStatus">En attente…</span>
+    </div>
+
+    <div class="drop-zone" id="audioZone" onclick="document.getElementById('audioInput').click()">
+      <input type="file" id="audioInput" accept=".mp3,.ogg,.wav,.m4a" multiple webkitdirectory>
+      <span class="drop-icon">🎵</span>
+      <div class="drop-label">Dossier Audio MP3</div>
+      <div class="drop-sub">Sélectionne le dossier entier</div>
+      <span class="status-tag" id="audioStatus">En attente…</span>
+    </div>
+  </div>
+
+  <button class="run-btn" id="runBtn" disabled onclick="runAudit()">
+    ▶ Lancer l'audit
+  </button>
+
+  <!-- PROGRESS -->
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-label">
+      <span id="progressLabel">Analyse en cours…</span>
+      <span id="progressPct">0%</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+  </div>
+
+  <!-- REPORT -->
+  <div class="report-section" id="reportSection">
+
+    <!-- KPI cards -->
+    <div class="stats-grid">
+      <div class="stat-card c-blue">
+        <div class="stat-val" id="kpiWords">—</div>
+        <div class="stat-key">Mots dans le JSON</div>
+      </div>
+      <div class="stat-card c-blue">
+        <div class="stat-val" id="kpiAudios">—</div>
+        <div class="stat-key">Fichiers audio chargés</div>
+      </div>
+      <div class="stat-card c-green">
+        <div class="stat-val" id="kpiCoverage">—</div>
+        <div class="stat-key">Couverture audio</div>
+      </div>
+      <div class="stat-card c-yellow">
+        <div class="stat-val" id="kpiMissing">—</div>
+        <div class="stat-key">Fichiers manquants</div>
+      </div>
+    </div>
+
+    <!-- Taille & Fichiers -->
+    <div class="section">
+      <div class="section-title">Taille & Fichiers</div>
+      <div class="missing-list-wrap" style="padding: 16px 20px;">
+        <div class="size-row"><span class="lbl">Taille totale des audios</span><span class="val" id="sizeTotalAll">—</span></div>
+        <div class="size-row"><span class="lbl">Taille des audios trouvés (matched)</span><span class="val" id="sizeMatched">—</span></div>
+        <div class="size-row"><span class="lbl">Taille moyenne par fichier</span><span class="val" id="sizeAvg">—</span></div>
+        <div class="size-row"><span class="lbl">Fichier le plus grand</span><span class="val" id="sizeMax">—</span></div>
+        <div class="size-row"><span class="lbl">Fichier le plus petit</span><span class="val" id="sizeMin">—</span></div>
+      </div>
+    </div>
+
+    <!-- Breakdown par niveau -->
+    <div class="section">
+      <div class="section-title">Couverture par niveau CECR</div>
+      <div class="missing-list-wrap">
+        <table class="level-table">
+          <thead>
+            <tr>
+              <th>Niveau</th>
+              <th>Mots</th>
+              <th>Trouvés</th>
+              <th>Manquants</th>
+              <th>%</th>
+              <th class="bar-cell"></th>
+            </tr>
+          </thead>
+          <tbody id="levelTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Fichiers orphelins -->
+    <div class="section" id="orphanSection">
+      <div class="section-title">Fichiers audio sans entrée JSON (orphelins)</div>
+      <div class="missing-list-wrap" style="padding: 14px 20px;">
+        <div id="orphanContent"></div>
+      </div>
+    </div>
+
+    <!-- Liste manquants -->
+    <div class="section">
+      <div class="section-title">Fichiers manquants — détail</div>
+      <div class="missing-list-wrap">
+        <div class="missing-toolbar">
+          <input type="text" id="missingSearch" placeholder="Filtrer par mot, ID ou niveau…" oninput="filterMissing()">
+          <button class="export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+          <button class="export-btn" onclick="exportTXT()">⬇ Export TXT</button>
+        </div>
+        <div class="missing-list" id="missingList"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  let vocabData = null;
+  let audioFiles = [];
+  let auditResults = null;
+
+  // ── Load JSON ──
+  document.getElementById('jsonInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      try {
+        vocabData = JSON.parse(ev.target.result);
+        document.getElementById('jsonStatus').textContent = `${vocabData.length.toLocaleString('fr')} entrées`;
+        document.getElementById('jsonStatus').className = 'status-tag ok';
+        document.getElementById('jsonZone').classList.add('loaded');
+        checkReady();
+      } catch(err) {
+        document.getElementById('jsonStatus').textContent = 'JSON invalide';
+        document.getElementById('jsonStatus').className = 'status-tag warn';
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  // ── Load Audio folder ──
+  document.getElementById('audioInput').addEventListener('change', function(e) {
+    audioFiles = Array.from(e.target.files);
+    document.getElementById('audioStatus').textContent = `${audioFiles.length.toLocaleString('fr')} fichiers`;
+    document.getElementById('audioStatus').className = 'status-tag ok';
+    document.getElementById('audioZone').classList.add('loaded');
+    checkReady();
+  });
+
+  function checkReady() {
+    const ready = vocabData && audioFiles.length > 0;
+    document.getElementById('runBtn').disabled = !ready;
+  }
+
+  // ── Run Audit ──
+  async function runAudit() {
+    document.getElementById('runBtn').disabled = true;
+    document.getElementById('progressWrap').style.display = 'block';
+    document.getElementById('reportSection').style.display = 'none';
+
+    await sleep(30);
+
+    // Build audio map: filename (lowercase, no ext) → File
+    const audioMap = {};
+    let totalSizeAll = 0;
+
+    for (const f of audioFiles) {
+      const base = f.name.replace(/\.[^.]+$/, '').toLowerCase().trim();
+      audioMap[base] = f;
+      totalSizeAll += f.size;
+    }
+
+    const total = vocabData.length;
+    let matched = 0;
+    let matchedSize = 0;
+    const missing = [];
+    const levelStats = {};
+
+    // Expected filename patterns to try
+    function getCandidates(entry) {
+      const w = entry.word.toLowerCase().trim();
+      const id = String(entry.id);
+      return [
+        w,
+        w.replace(/\s+/g, '_'),
+        w.replace(/\s+/g, '-'),
+        id,
+        `${id}_${w}`,
+        `${w}_${id}`,
+      ];
+    }
+
+    for (let i = 0; i < total; i++) {
+      if (i % 500 === 0) {
+        setProgress(Math.round((i / total) * 90), `Analyse… ${i.toLocaleString('fr')} / ${total.toLocaleString('fr')}`);
+        await sleep(0);
+      }
+
+      const entry = vocabData[i];
+      const level = entry.level || 'N/A';
+      if (!levelStats[level]) levelStats[level] = { total: 0, matched: 0 };
+      levelStats[level].total++;
+
+      const candidates = getCandidates(entry);
+      let found = false;
+      for (const c of candidates) {
+        if (audioMap[c]) {
+          matched++;
+          matchedSize += audioMap[c].size;
+          levelStats[level].matched++;
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
+        missing.push({ id: entry.id, word: entry.word, level, expected: getCandidates(entry)[0] + '.mp3' });
+      }
+    }
+
+    // Orphans: audio files with no matching JSON entry
+    const allExpected = new Set();
+    for (const entry of vocabData) {
+      for (const c of getCandidates(entry)) allExpected.add(c);
+    }
+    const orphans = Object.keys(audioMap).filter(k => !allExpected.has(k));
+
+    // Sizes
+    const sizes = audioFiles.map(f => f.size).filter(s => s > 0);
+    const maxFile = audioFiles.reduce((a, b) => a.size > b.size ? a : b, audioFiles[0]);
+    const minFile = audioFiles.reduce((a, b) => a.size < b.size ? a : b, audioFiles[0]);
+
+    setProgress(100, 'Terminé !');
+    await sleep(200);
+
+    auditResults = { missing, orphans, levelStats, matched, total, audioFiles, totalSizeAll, matchedSize, sizes, maxFile, minFile };
+    renderReport(auditResults);
+
+    document.getElementById('progressWrap').style.display = 'none';
+    document.getElementById('reportSection').style.display = 'block';
+    document.getElementById('runBtn').disabled = false;
+  }
+
+  function renderReport({ missing, orphans, levelStats, matched, total, audioFiles, totalSizeAll, matchedSize, sizes, maxFile, minFile }) {
+    const coverage = total > 0 ? ((matched / total) * 100).toFixed(1) : 0;
+
+    document.getElementById('kpiWords').textContent = total.toLocaleString('fr');
+    document.getElementById('kpiAudios').textContent = audioFiles.length.toLocaleString('fr');
+    document.getElementById('kpiCoverage').textContent = coverage + '%';
+    document.getElementById('kpiMissing').textContent = missing.length.toLocaleString('fr');
+
+    // Sizes
+    document.getElementById('sizeTotalAll').textContent = fmtSize(totalSizeAll);
+    document.getElementById('sizeMatched').textContent = fmtSize(matchedSize);
+    document.getElementById('sizeAvg').textContent = audioFiles.length ? fmtSize(totalSizeAll / audioFiles.length) : '—';
+    document.getElementById('sizeMax').textContent = maxFile ? `${maxFile.name} — ${fmtSize(maxFile.size)}` : '—';
+    document.getElementById('sizeMin').textContent = minFile ? `${minFile.name} — ${fmtSize(minFile.size)}` : '—';
+
+    // Level table
+    const levelOrder = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'N/A'];
+    const tbody = document.getElementById('levelTableBody');
+    tbody.innerHTML = '';
+
+    const sortedLevels = Object.keys(levelStats).sort((a, b) => {
+      const ia = levelOrder.indexOf(a), ib = levelOrder.indexOf(b);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+
+    for (const lvl of sortedLevels) {
+      const s = levelStats[lvl];
+      const pct = s.total > 0 ? ((s.matched / s.total) * 100).toFixed(1) : 0;
+      const pillClass = pct >= 95 ? 'pill-green' : pct >= 70 ? 'pill-yellow' : 'pill-red';
+      tbody.innerHTML += `
+        <tr>
+          <td><span class="pill ${pillClass}">${lvl}</span></td>
+          <td>${s.total.toLocaleString('fr')}</td>
+          <td>${s.matched.toLocaleString('fr')}</td>
+          <td>${(s.total - s.matched).toLocaleString('fr')}</td>
+          <td>${pct}%</td>
+          <td class="bar-cell">
+            <div class="mini-bar-bg"><div class="mini-bar-fill" style="width:${pct}%"></div></div>
+          </td>
+        </tr>`;
+    }
+
+    // Orphans
+    const orphanEl = document.getElementById('orphanContent');
+    if (orphans.length === 0) {
+      orphanEl.innerHTML = '<div style="color:var(--green);font-size:13px;font-family:var(--mono);">✓ Aucun fichier orphelin détecté.</div>';
+    } else {
+      orphanEl.innerHTML = `<div style="font-size:13px;color:var(--yellow);font-family:var(--mono);margin-bottom:8px;">${orphans.length} fichier(s) sans correspondance JSON</div>` +
+        orphans.slice(0, 50).map(o => `<div style="font-size:12px;font-family:var(--mono);color:var(--text-dim);padding:2px 0;">${o}.mp3</div>`).join('') +
+        (orphans.length > 50 ? `<div style="font-size:12px;color:var(--muted);margin-top:6px;">… et ${orphans.length - 50} de plus</div>` : '');
+    }
+
+    renderMissingList(missing);
+  }
+
+  function renderMissingList(items) {
+    const el = document.getElementById('missingList');
+    if (items.length === 0) {
+      el.innerHTML = '<div class="empty-state">🎉 Tous les audios sont présents !</div>';
+      return;
+    }
+    el.innerHTML = items.map(m => `
+      <div class="missing-item">
+        <span class="id">#${m.id}</span>
+        <span class="word">${escHtml(m.word)}</span>
+        <span class="level"><span class="pill ${m.level === 'A1' || m.level === 'A2' ? 'pill-green' : m.level === 'B1' || m.level === 'B2' ? 'pill-yellow' : 'pill-red'}">${m.level}</span></span>
+        <span class="expected">${escHtml(m.expected)}</span>
+      </div>`).join('');
+  }
+
+  function filterMissing() {
+    if (!auditResults) return;
+    const q = document.getElementById('missingSearch').value.toLowerCase();
+    const filtered = auditResults.missing.filter(m =>
+      m.word.toLowerCase().includes(q) ||
+      String(m.id).includes(q) ||
+      m.level.toLowerCase().includes(q)
+    );
+    renderMissingList(filtered);
+  }
+
+  function exportCSV() {
+    if (!auditResults) return;
+    const rows = [['ID', 'Mot', 'Niveau', 'Fichier attendu']];
+    for (const m of auditResults.missing) rows.push([m.id, m.word, m.level, m.expected]);
+    const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+    downloadFile('manquants_audio.csv', csv, 'text/csv');
+  }
+
+  function exportTXT() {
+    if (!auditResults) return;
+    const lines = auditResults.missing.map(m => `${m.expected}`);
+    downloadFile('manquants_audio.txt', lines.join('\n'), 'text/plain');
+  }
+
+  function downloadFile(name, content, type) {
+    const blob = new Blob([content], { type });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+  }
+
+  // ── Helpers ──
+  function setProgress(pct, label) {
+    document.getElementById('progressFill').style.width = pct + '%';
+    document.getElementById('progressPct').textContent = pct + '%';
+    document.getElementById('progressLabel').textContent = label;
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  function fmtSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + units[i];
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+</script>
+</body>
+</html>
