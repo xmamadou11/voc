@@ -1,0 +1,270 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VocSpace — Master English Through the Cosmos</title>
+  <meta name="description" content="An immersive space-themed English vocabulary learning experience. 10,825 words across all CEFR levels." />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Inter:wght@300;400;500;600&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+
+  <!-- Three.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="https://xmamadou11.github.io/voc/style.css" />
+</head>
+<body>
+
+  <!-- ============================================================
+       THREE.JS CANVAS — Full-screen space background
+       Rendered by initSpaceScene() in app.js
+  ============================================================ -->
+  <canvas id="space-canvas"></canvas>
+
+  <!-- ============================================================
+       LANDING SCREEN
+  ============================================================ -->
+  <section id="landing" class="screen active" aria-label="Landing screen">
+
+    <!-- Top status bar -->
+    <header class="hud-bar">
+      <div class="hud-item">
+        <span class="hud-label">SYSTEM</span>
+        <span class="hud-value status-online">ONLINE</span>
+      </div>
+      <div class="hud-logo">VOC<span class="logo-accent">SPACE</span></div>
+      <div class="hud-item align-right">
+        <span class="hud-label">SECTOR</span>
+        <span class="hud-value">ALPHA-7</span>
+      </div>
+    </header>
+
+    <!-- Central hero -->
+    <main class="hero" role="main">
+      <div class="hero-inner">
+
+        <!-- Orbital ring decoration -->
+        <div class="orbit-ring orbit-ring--outer" aria-hidden="true"></div>
+        <div class="orbit-ring orbit-ring--inner" aria-hidden="true"></div>
+
+        <!-- Word count -->
+        <div class="word-count" aria-label="10825 words in the database">
+          <span class="word-count__number" id="animated-count">0</span>
+          <span class="word-count__unit">WORDS</span>
+        </div>
+
+        <!-- Tagline -->
+        <h1 class="hero-tagline">
+          Master English Vocabulary<br />
+          <em>Through Space Exploration</em>
+        </h1>
+
+        <!-- Subline -->
+        <p class="hero-sub">
+          6 CEFR levels &nbsp;·&nbsp; A1 → C2 &nbsp;·&nbsp; Bilingual EN/FR
+        </p>
+
+        <!-- CTA -->
+        <button
+          id="btn-start"
+          class="cta-button"
+          aria-label="Start Mission — enter the vocabulary station"
+        >
+          <span class="cta-button__ring" aria-hidden="true"></span>
+          <span class="cta-button__text">START MISSION</span>
+          <span class="cta-button__glow" aria-hidden="true"></span>
+        </button>
+
+        <!-- Feature pills -->
+        <div class="feature-pills" aria-label="Features">
+          <span class="pill">Spaced repetition</span>
+          <span class="pill">Audio pronunciation</span>
+          <span class="pill">Offline ready</span>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- Bottom HUD -->
+    <footer class="hud-footer" aria-hidden="true">
+      <div class="scan-line"></div>
+      <div class="hud-coords">
+        LAT <span id="hud-lat">00.000</span> &nbsp;·&nbsp;
+        LON <span id="hud-lon">00.000</span> &nbsp;·&nbsp;
+        ALT <span id="hud-alt">420</span> km
+      </div>
+    </footer>
+
+  </section>
+
+  <!-- ============================================================
+       TRANSITION OVERLAY — Cinematic warp
+  ============================================================ -->
+  <div id="warp-overlay" aria-hidden="true">
+    <div class="warp-lines"></div>
+    <div class="warp-center-flash"></div>
+  </div>
+
+  <!-- ============================================================
+       MISSION SCREEN — Vocabulary station
+  ============================================================ -->
+  <section id="mission" class="screen" aria-label="Vocabulary mission screen">
+
+    <!-- HUD top -->
+    <header class="hud-bar">
+      <button id="btn-back" class="hud-btn" aria-label="Return to base">
+        ← BASE
+      </button>
+      <div class="mission-progress" role="status" aria-live="polite">
+        <div class="progress-track" aria-hidden="true">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <span class="progress-label" id="progress-label">0 / 0</span>
+      </div>
+      <div class="mission-stats">
+        <span class="stat" id="stat-streak" aria-label="Streak">🔥 0</span>
+        <span class="stat" id="stat-score" aria-label="Score">⚡ 0</span>
+      </div>
+    </header>
+
+    <!-- Station hologram area -->
+    <main class="station" role="main">
+
+      <!-- Floating debris / ambiance -->
+      <div class="debris" aria-hidden="true">
+        <div class="debris__dot"></div>
+        <div class="debris__dot"></div>
+        <div class="debris__dot"></div>
+        <div class="debris__ring"></div>
+      </div>
+
+      <!-- =========================================================
+           VOCABULARY CARD
+           Flip card: front = English, back = French translation
+      ========================================================= -->
+      <div
+        class="card-scene"
+        id="card-scene"
+        role="region"
+        aria-label="Vocabulary card"
+      >
+        <div class="card" id="vocab-card">
+
+          <!-- Front face -->
+          <div class="card__face card__face--front" id="card-front">
+            <div class="card__holo-bar" aria-hidden="true"></div>
+
+            <!-- CEFR level badge -->
+            <div class="card__level" id="card-level" aria-label="CEFR level">A2</div>
+
+            <!-- English word -->
+            <div class="card__word" id="card-word" aria-label="English word">
+              ABANDON
+            </div>
+
+            <!-- Phonetic -->
+            <div class="card__phonetic" id="card-phonetic">/əˈbændən/</div>
+
+            <!-- Audio button -->
+            <button
+              class="card__audio"
+              id="btn-audio"
+              aria-label="Pronounce word"
+              title="Listen to pronunciation"
+            >
+              <!--
+                AUDIO SOURCE:
+                Audio files are fetched from:
+                https://xmamadou11.github.io/voc/audios/{word}.mp3
+                See playAudio() in app.js to update the base URL.
+              -->
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+              </svg>
+            </button>
+
+            <!-- Reveal button -->
+            <button class="card__reveal" id="btn-reveal" aria-label="Reveal translation">
+              <span>REVEAL</span>
+              <div class="reveal-shimmer" aria-hidden="true"></div>
+            </button>
+
+            <div class="card__scan-line" aria-hidden="true"></div>
+          </div>
+
+          <!-- Back face -->
+          <div class="card__face card__face--back" id="card-back" aria-hidden="true">
+            <div class="card__holo-bar card__holo-bar--back" aria-hidden="true"></div>
+
+            <div class="card__level" id="card-level-back">A2</div>
+
+            <div class="card__word card__word--small" id="card-word-back">
+              ABANDON
+            </div>
+
+            <!-- French translation -->
+            <div class="card__translation" id="card-translation">
+              abandonner
+            </div>
+
+            <!-- Rating buttons -->
+            <div class="card__ratings" role="group" aria-label="Rate your recall">
+              <button class="rate-btn rate-btn--again" data-rating="again" aria-label="Again — didn't remember">
+                <span class="rate-btn__label">AGAIN</span>
+                <span class="rate-btn__sub">&lt; 1 min</span>
+              </button>
+              <button class="rate-btn rate-btn--hard" data-rating="hard" aria-label="Hard — almost remembered">
+                <span class="rate-btn__label">HARD</span>
+                <span class="rate-btn__sub">6 min</span>
+              </button>
+              <button class="rate-btn rate-btn--good" data-rating="good" aria-label="Good — remembered with effort">
+                <span class="rate-btn__label">GOOD</span>
+                <span class="rate-btn__sub">10 min</span>
+              </button>
+              <button class="rate-btn rate-btn--easy" data-rating="easy" aria-label="Easy — perfect recall">
+                <span class="rate-btn__label">EASY</span>
+                <span class="rate-btn__sub">4 days</span>
+              </button>
+            </div>
+
+            <div class="card__scan-line" aria-hidden="true"></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Session complete state -->
+      <div class="session-complete hidden" id="session-complete" role="status" aria-live="polite">
+        <div class="complete-icon" aria-hidden="true">🛸</div>
+        <h2 class="complete-title">Mission Complete</h2>
+        <p class="complete-sub">Sector cleared. Vocabulary locked in memory.</p>
+        <button class="cta-button cta-button--sm" id="btn-restart">
+          <span class="cta-button__text">NEW MISSION</span>
+        </button>
+      </div>
+
+    </main>
+
+  </section>
+
+  <!-- ============================================================
+       SCRIPTS
+       Load order: demo data → app logic
+  ============================================================ -->
+  <!--
+    DATA SOURCE SWITCH:
+    To use your real vocabulary JSON instead of demo words,
+    comment out the line below and use fetch() in app.js.
+    See loadVocabularyJSON() in app.js.
+  -->
+  <script src="https://xmamadou11.github.io/voc/app.js"></script>
+
+</body>
+</html>
