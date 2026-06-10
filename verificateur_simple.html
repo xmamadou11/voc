@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Mini Vérificateur Audios</title>
+<style>
+body{font-family:Arial;padding:20px}
+pre{background:#f4f4f4;padding:10px}
+</style>
+</head>
+<body>
+<h2>Vérificateur Audios</h2>
+<p>Sélectionnez vocabulary.json puis votre dossier d'audios.</p>
+<input type="file" id="json" accept=".json"><br><br>
+<input type="file" id="audios" webkitdirectory multiple><br><br>
+<button onclick="check()">Vérifier</button>
+<pre id="out"></pre>
+<script>
+function normalize(s){
+ return s.toLowerCase()
+   .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+   .replace(/_/g,' ')
+   .trim();
+}
+async function check(){
+ const jf=document.getElementById('json').files[0];
+ const files=[...document.getElementById('audios').files];
+ const vocab=JSON.parse(await jf.text());
+ const words=new Set(vocab.map(v=>normalize(v.word)));
+ const audios=new Set(files.map(f=>normalize(f.name.replace(/\.mp3$/i,''))));
+ const missing=[...words].filter(w=>!audios.has(w));
+ document.getElementById('out').textContent =
+   "Manquants ("+missing.length+"):\n\n"+missing.join("\n");
+}
+</script>
+</body>
+</html>
