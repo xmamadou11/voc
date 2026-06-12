@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ROCKET</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #06080e; font-family: 'Courier New', monospace; color: #dde3f0; width: 100vw; height: 100vh; overflow: hidden; }
+#c { position: fixed; inset: 0; z-index: 1; }
+#ui { position: fixed; inset: 0; z-index: 10; pointer-events: none; padding: 28px 24px; }
+#brand { position: absolute; top: 28px; left: 24px; }
+#brand .logo { font-size: clamp(38px,9vw,60px); font-weight: 900; letter-spacing: -2px; line-height: 1; font-family: Arial Black,sans-serif; text-transform: lowercase; }
+#brand .copy { margin-top: 10px; font-size: 11px; color: rgba(200,210,230,0.55); line-height: 1.7; }
+#manifesto { position: absolute; top: 28px; right: 24px; text-align: right; max-width: 210px; }
+#manifesto .ey { font-size: 11px; letter-spacing: 0.18em; color: rgba(200,210,230,0.5); margin-bottom: 10px; }
+#manifesto p { font-size: 11.5px; line-height: 1.8; color: rgba(200,210,230,0.55); }
+#snd { position: absolute; bottom: 28px; left: 24px; display: flex; align-items: center; gap: 8px; font-size: 12px; font-family: 'Courier New',monospace; color: rgba(200,210,230,0.55); background: none; border: none; cursor: pointer; pointer-events: all; }
+#snd:hover { color: #dde3f0; }
+#coords { position: absolute; bottom: 28px; right: 24px; text-align: right; font-size: 10px; color: rgba(200,210,230,0.3); line-height: 1.9; letter-spacing: 0.08em; }
+body::after { content: ''; position: fixed; inset: 0; z-index: 20; background: repeating-linear-gradient(to bottom,transparent 0px,transparent 3px,rgba(0,0,0,0.04) 3px,rgba(0,0,0,0.04) 4px); pointer-events: none; }
+#intro { position: fixed; inset: 0; z-index: 30; background: #06080e; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; transition: opacity 0.7s; }
+#intro.done { opacity: 0; pointer-events: none; }
+#itxt { font-size: 11px; letter-spacing: 0.3em; color: rgba(200,210,230,0.5); }
+.bar { width: 180px; height: 1px; background: rgba(255,255,255,0.1); }
+.bf { height: 100%; background: #5bc8f5; width: 0; transition: width 0.04s; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div id="brand">
+    <div class="logo">rocket</div>
+    <div class="copy">// Copyright © 2026<br>Rocket Space, Inc.<br>All Rights Reserved.</div>
+  </div>
+  <div id="manifesto">
+    <div class="ey">////// Manifesto</div>
+    <p>Our mission is to<br>push humanity beyond<br>the edge of known<br>space, at the<br>intersection of<br>engineering, AI,<br>and the cosmos.</p>
+  </div>
+  <button id="snd"><span id="si">&#128266;</span><span id="sl">Sound: On</span></button>
+  <div id="coords">
+    <div id="clat">LAT +28.573</div>
+    <div id="clon">LON -80.648</div>
+    <div id="calt">ALT 420.00 km</div>
+  </div>
+</div>
+<div id="intro">
+  <div id="itxt">INITIALIZING LAUNCH SEQUENCE</div>
+  <div class="bar"><div class="bf" id="bf"></div></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+var bf=document.getElementById('bf'), intro=document.getElementById('intro'), p=0;
+var iv=setInterval(function(){
+  p+=Math.random()*7+2; bf.style.width=Math.min(p,100)+'%';
+  if(p>=100){clearInterval(iv);setTimeout(function(){intro.classList.add('done');},300);}
+},60);
+
+var canvas=document.getElementById('c');
+var renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.setClearColor(0x06080e,1);
+
+var scene=new THREE.Scene();
+var camera=new THREE.PerspectiveCamera(45,window.innerWidth/window.innerHeight,0.1,1000);
+camera.position.set(0,0,9);
+
+scene.add(new THREE.AmbientLight(0x223344,1.2));
+var sun=new THREE.DirectionalLight(0xffffff,2.5); sun.position.set(4,6,5); scene.add(sun);
+var rim=new THREE.DirectionalLight(0x5bc8f5,1.0); rim.position.set(-5,-2,3); scene.add(rim);
+var fl=new THREE.PointLight(0x5bc8f5,3,20); fl.position.set(0,-3,4); scene.add(fl);
+
+(function(){
+  var geo=new THREE.BufferGeometry(), n=1600, pos=new Float32Array(n*3);
+  for(var i=0;i<n*3;i++) pos[i]=(Math.random()-0.5)*180;
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  scene.add(new THREE.Points(geo,new THREE.PointsMaterial({color:0xffffff,size:0.15,sizeAttenuation:true})));
+})();
+
+var mBody  =new THREE.MeshStandardMaterial({color:0xdde8ee,metalness:0.7,roughness:0.25});
+var mDark  =new THREE.MeshStandardMaterial({color:0x1a2535,metalness:0.8,roughness:0.3});
+var mAcc   =new THREE.MeshStandardMaterial({color:0x5bc8f5,metalness:0.5,roughness:0.2,emissive:0x1a4a5a,emissiveIntensity:0.6});
+var mFin   =new THREE.MeshStandardMaterial({color:0x8aaabb,metalness:0.6,roughness:0.35});
+var mEng   =new THREE.MeshStandardMaterial({color:0x2a3a44,metalness:0.9,roughness:0.2});
+var mGlass =new THREE.MeshStandardMaterial({color:0x5bc8f5,metalness:0.1,roughness:0.0,transparent:true,opacity:0.85,emissive:0x2a7090,emissiveIntensity:1.2});
+
+var segs=[];
+function seg(mesh,dx,dy,dz,dr){
+  segs.push({mesh:mesh,dx:dx||0,dy:dy||0,dz:dz||0,dr:dr||0,
+    hx:mesh.position.x,hy:mesh.position.y,hz:mesh.position.z,hrz:mesh.rotation.z});
+}
+
+var body=new THREE.Mesh(new THREE.CylinderGeometry(0.52,0.60,3.4,32),mBody);
+seg(body,0.15,0,0.1,0.02);
+
+var nose=new THREE.Mesh(new THREE.ConeGeometry(0.52,2.0,32),mBody);
+nose.position.set(0,2.7,0); seg(nose,0,0.8,0,0.03);
+
+var tip=new THREE.Mesh(new THREE.SphereGeometry(0.09,16,16),mAcc);
+tip.position.set(0,3.72,0); seg(tip,0,1.1,0,0);
+
+var sGeo=new THREE.CylinderGeometry(0.53,0.53,0.12,32);
+var s1=new THREE.Mesh(sGeo,mAcc); s1.position.set(0,0.8,0); seg(s1,0.2,0.1,0.05,0.01);
+var s2=new THREE.Mesh(sGeo,mAcc); s2.position.set(0,-0.4,0); seg(s2,-0.2,-0.1,0.05,-0.01);
+
+var pan=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.9,0.05),mDark);
+pan.position.set(0,-0.1,0.57); seg(pan,0.3,0,0.4,0.04);
+
+var win=new THREE.Mesh(new THREE.SphereGeometry(0.22,32,32),mGlass);
+win.position.set(0,1.2,0.46); seg(win,0.15,0.4,0.5,0.05);
+
+function makeFin(side){
+  var sh=new THREE.Shape();
+  sh.moveTo(0,0); sh.lineTo(-0.9*side,-0.6); sh.lineTo(-0.7*side,-1.4); sh.lineTo(0,-1.2); sh.closePath();
+  var m=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,{depth:0.07,bevelEnabled:false}),mFin);
+  m.position.set(side*0.58,-1.0,0); m.rotation.x=Math.PI/2; return m;
+}
+var fL=makeFin(-1); seg(fL,-0.7,-0.5,0,-0.08);
+var fR=makeFin(1);  seg(fR, 0.7,-0.5,0, 0.08);
+
+function makeFinB(side){
+  var sh=new THREE.Shape();
+  sh.moveTo(0,0); sh.lineTo(side*0.7,-0.5); sh.lineTo(side*0.5,-1.2); sh.lineTo(0,-1.0); sh.closePath();
+  var m=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,{depth:0.07,bevelEnabled:false}),mFin);
+  m.position.set(0,-1.0,side*0.58); m.rotation.y=Math.PI/2; m.rotation.x=Math.PI/2; return m;
+}
+var fBL=makeFinB(-1); seg(fBL,0,-0.5,-0.7,-0.06);
+var fBR=makeFinB(1);  seg(fBR,0,-0.5, 0.7, 0.06);
+
+var eng=new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.55,0.5,32,1,true),mEng);
+eng.position.set(0,-2.0,0); seg(eng,0,-0.7,0,0);
+
+var rng=new THREE.Mesh(new THREE.TorusGeometry(0.55,0.06,16,40),mAcc);
+rng.position.set(0,-1.78,0); seg(rng,0,-0.6,0,0);
+
+var group=new THREE.Group();
+segs.forEach(function(s){group.add(s.mesh);});
+scene.add(group);
+
+function eio(t){return t<0.5?2*t*t:-1+(4-2*t)*t;}
+
+var mx=0,my=0;
+window.addEventListener('mousemove',function(e){
+  mx=(e.clientX/window.innerWidth-0.5)*2;
+  my=(e.clientY/window.innerHeight-0.5)*2;
+});
+
+var lat=28.573,lon=-80.648,alt=420.0;
+setInterval(function(){
+  lat+=(Math.random()-0.5)*0.003;
+  lon+=(Math.random()-0.5)*0.005;
+  alt+=(Math.random()-0.5)*0.4;
+  document.getElementById('clat').textContent='LAT '+(lat>=0?'+':'')+lat.toFixed(3);
+  document.getElementById('clon').textContent='LON '+(lon>=0?'+':'')+lon.toFixed(3);
+  document.getElementById('calt').textContent='ALT '+alt.toFixed(2)+' km';
+},900);
+
+var actx=null,gn=null,son=true;
+document.getElementById('snd').addEventListener('click',function(){
+  son=!son;
+  document.getElementById('si').textContent=son?'\uD83D\uDD0A':'\uD83D\uDD07';
+  document.getElementById('sl').textContent=son?'Sound: On':'Sound: Off';
+  if(son) startAudio(); else if(gn) gn.gain.setTargetAtTime(0,actx.currentTime,0.1);
+});
+function startAudio(){
+  if(actx){gn.gain.setTargetAtTime(0.06,actx.currentTime,0.1);return;}
+  try{
+    actx=new(window.AudioContext||window.webkitAudioContext)();
+    gn=actx.createGain(); gn.gain.value=0.06; gn.connect(actx.destination);
+    [52,55].forEach(function(f){
+      var o=actx.createOscillator(); o.type='sawtooth'; o.frequency.value=f;
+      var g=actx.createGain(); g.gain.value=0.5;
+      o.connect(g); g.connect(gn); o.start();
+    });
+  }catch(e){}
+}
+document.addEventListener('click',startAudio,{once:true});
+
+window.addEventListener('resize',function(){
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
+
+var CYCLE=8000;
+function animate(){
+  requestAnimationFrame(animate);
+  var now=Date.now(), t=(now%CYCLE)/CYCLE, factor;
+  if(t<0.25)       factor=0;
+  else if(t<0.45)  factor=eio((t-0.25)/0.20);
+  else if(t<0.65)  factor=1;
+  else if(t<0.85)  factor=1-eio((t-0.65)/0.20);
+  else             factor=0;
+
+  segs.forEach(function(s){
+    s.mesh.position.set(s.hx+s.dx*factor, s.hy+s.dy*factor, s.hz+s.dz*factor);
+    s.mesh.rotation.z=s.hrz+s.dr*factor*Math.PI;
+  });
+
+  group.position.y=Math.sin(now/2000)*0.18;
+  group.rotation.y=now/9000+mx*0.25;
+  group.rotation.x=-0.12+my*-0.12;
+
+  renderer.render(scene,camera);
+}
+animate();
+</script>
+</body>
+</html>
