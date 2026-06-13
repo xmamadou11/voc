@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vocabulary Audio Player</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0f1117; --surface: #181c27; --surface2: #1f2436; --border: #2a3050;
+    --accent: #4f8ef7; --accent-dim: #1e3a6e; --green: #3ecf8e;
+    --orange: #e8923d; --text: #e8eaf0; --muted: #6b7394;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; min-height: 100vh; }
+
+  /* TABS */
+  header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0 28px; display: flex; align-items: stretch;
+    justify-content: space-between; position: sticky; top: 0; z-index: 100;
+  }
+  .logo { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--accent); letter-spacing:.08em; display:flex; align-items:center; padding-right:24px; }
+  .logo span { color:var(--muted); }
+  nav { display:flex; gap:0; }
+  .tab-btn {
+    padding: 16px 22px; font-size:13px; font-weight:500; color:var(--muted);
+    background:none; border:none; border-bottom:2px solid transparent;
+    cursor:pointer; transition:all .15s; white-space:nowrap;
+  }
+  .tab-btn:hover { color:var(--text); }
+  .tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+  #header-stats { display:flex; gap:20px; font-size:12px; color:var(--muted); align-items:center; flex-wrap:wrap; padding-left:16px; }
+  #header-stats b { color:var(--text); }
+  .cov-ok { color:var(--green) !important; } .cov-miss { color:var(--orange) !important; }
+
+  /* PAGES */
+  .page { display:none; }
+  .page.active { display:block; }
+
+  /* ── SETUP PAGE ── */
+  #setup-page { max-width:680px; margin:40px auto; padding:0 24px; display:flex; flex-direction:column; gap:20px; }
+
+  .drop-card {
+    background:var(--surface); border:2px dashed var(--border); border-radius:16px;
+    padding:38px 32px; text-align:center; cursor:pointer; transition:border-color .18s, background .18s;
+  }
+  .drop-card:hover, .drop-card.drag-over { border-color:var(--accent); background:var(--accent-dim); }
+  .drop-card .icon { font-size:38px; display:block; margin-bottom:10px; }
+  .drop-card h3 { font-size:15px; font-weight:500; margin-bottom:6px; }
+  .drop-card p { font-size:12px; color:var(--muted); line-height:1.7; }
+  .drop-card p b { color:var(--accent); }
+  .drop-card.done { border-color:var(--green); border-style:solid; cursor:default; }
+  .drop-card.done h3 { color:var(--green); }
+  input[type=file] { display:none; }
+
+  /* MISSING PANEL */
+  #missing-panel { display:none; background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .missing-header { padding:13px 20px; background:var(--surface2); display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); }
+  .missing-header h4 { font-size:13px; font-weight:500; }
+  .miss-count-lbl { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--orange); }
+  .missing-toggle { font-size:12px; color:var(--accent); cursor:pointer; background:none; border:none; }
+  #missing-preview { padding:4px 0; }
+  .miss-row { display:flex; align-items:center; gap:12px; padding:7px 20px; font-size:13px; border-bottom:1px solid var(--border); }
+  .miss-row:last-child { border-bottom:none; }
+  .miss-id { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); min-width:46px; text-align:right; }
+  .miss-word { font-weight:500; min-width:140px; }
+  .miss-file { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--orange); flex:1; }
+  .miss-lvl { font-family:'JetBrains Mono',monospace; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:600; }
+
+  /* ── PLAYER PAGE ── */
+  #controls {
+    display:none; padding:11px 28px; background:var(--surface);
+    border-bottom:1px solid var(--border); gap:10px; align-items:center; flex-wrap:wrap;
+    position:sticky; top:53px; z-index:90;
+  }
+  #search {
+    flex:1; min-width:180px; background:var(--surface2); border:1px solid var(--border);
+    border-radius:8px; color:var(--text); font-family:inherit; font-size:13px;
+    padding:8px 14px; outline:none; transition:border-color .15s;
+  }
+  #search:focus { border-color:var(--accent); }
+  #search::placeholder { color:var(--muted); }
+  .chip {
+    padding:5px 13px; border-radius:20px; font-size:12px; font-weight:500;
+    border:1px solid var(--border); background:transparent; color:var(--muted); cursor:pointer; transition:all .15s;
+  }
+  .chip:hover { border-color:var(--accent); color:var(--accent); }
+  .chip.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .sort-select {
+    background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+    color:var(--text); font-family:inherit; font-size:13px; padding:8px 12px; outline:none; cursor:pointer;
+  }
+  .miss-btn {
+    font-size:12px; padding:5px 13px; border-radius:20px; border:1px solid var(--orange);
+    color:var(--orange); background:transparent; cursor:pointer; display:none;
+  }
+  .miss-btn:hover { background:var(--orange); color:#000; }
+
+  #player-page { max-width:960px; margin:0 auto; padding:0 24px 120px; }
+  #count-bar { font-size:12px; color:var(--muted); padding:12px 0 4px; }
+  #count-bar b { color:var(--accent); }
+  .section-label { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); padding:18px 0 7px; border-bottom:1px solid var(--border); margin-bottom:2px; }
+  .word-row { display:flex; align-items:center; gap:12px; padding:9px 10px; border-radius:8px; cursor:pointer; transition:background .1s; border-bottom:1px solid transparent; }
+  .word-row:hover { background:var(--surface); }
+  .word-row.playing { background:var(--accent-dim); border-color:var(--accent); }
+  .w-id { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--accent); min-width:50px; text-align:right; user-select:none; }
+  .play-btn { width:27px; height:27px; border-radius:50%; border:1px solid var(--border); background:var(--surface2); color:var(--accent); font-size:10px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; transition:background .12s; }
+  .play-btn:hover, .word-row.playing .play-btn { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .w-word { font-size:14px; font-weight:500; min-width:150px; }
+  .w-phonetic { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .w-trans { font-size:12px; color:var(--green); flex:1; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .w-level { font-family:'JetBrains Mono',monospace; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:600; min-width:28px; text-align:center; }
+  #empty-msg { text-align:center; padding:60px 20px; color:var(--muted); display:none; font-size:14px; }
+
+  /* ── DOWNLOAD PAGE ── */
+  #download-page { max-width:760px; margin:0 auto; padding:32px 24px 80px; }
+  #download-page h2 { font-size:18px; font-weight:500; margin-bottom:6px; }
+  #download-page .sub { font-size:13px; color:var(--muted); margin-bottom:28px; line-height:1.6; }
+  #download-page .sub b { color:var(--accent); }
+
+  #dl-not-ready { padding:40px; text-align:center; color:var(--muted); font-size:14px; background:var(--surface); border-radius:12px; }
+
+  .batch-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
+  .batch-card {
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:20px; display:flex; flex-direction:column; gap:12px;
+  }
+  .batch-card h4 { font-size:13px; font-weight:500; }
+  .batch-meta { font-size:12px; color:var(--muted); }
+  .batch-meta b { color:var(--text); }
+  .progress-bar { height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--accent); border-radius:2px; transition:width .3s; }
+  .dl-btn {
+    padding:9px 18px; background:var(--accent); color:#fff; border:none;
+    border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; transition:opacity .15s;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .dl-btn:hover { opacity:.85; }
+  .dl-btn:disabled { opacity:.4; cursor:not-allowed; }
+  .dl-btn.done { background:var(--green); color:#000; }
+  .dl-status { font-size:11px; color:var(--muted); text-align:center; min-height:16px; }
+
+  .dl-all-btn {
+    margin-top:24px; width:100%; padding:13px; background:var(--surface2);
+    border:1px solid var(--border); border-radius:10px; color:var(--text);
+    font-size:14px; font-weight:500; cursor:pointer; transition:all .15s;
+  }
+  .dl-all-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .dl-all-btn:disabled { opacity:.4; cursor:not-allowed; }
+
+  /* LEVEL BADGES */
+  .level-A1{background:#1a3a2a;color:#3ecf8e} .level-A2{background:#1e3a20;color:#5ddb6e}
+  .level-B1{background:#2a2a1a;color:#d4c44f} .level-B2{background:#2d2118;color:#e8923d}
+  .level-C1{background:#2a1a1a;color:#e85050} .level-C2{background:#221226;color:#c060e8}
+
+  /* NOW PLAYING */
+  #now-playing {
+    display:none; position:fixed; bottom:0; left:0; right:0;
+    background:var(--surface2); border-top:1px solid var(--border);
+    padding:10px 28px; align-items:center; gap:16px; z-index:200;
+  }
+  #np-id { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--accent); min-width:44px; }
+  #np-word { font-size:15px; font-weight:500; min-width:130px; }
+  #np-phonetic { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); flex:1; }
+  audio#player { width:240px; height:30px; filter:invert(.85) hue-rotate(180deg); }
+  #np-trans { font-size:12px; color:var(--green); flex:1; text-align:right; }
+  #np-close { background:none; border:none; color:var(--muted); font-size:18px; cursor:pointer; padding:4px; }
+
+  /* MODAL */
+  #modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:300; align-items:center; justify-content:center; }
+  #modal-overlay.open { display:flex; }
+  #modal-box { background:var(--surface); border:1px solid var(--border); border-radius:16px; width:90%; max-width:700px; max-height:80vh; overflow:hidden; display:flex; flex-direction:column; }
+  .modal-head { padding:16px 22px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .modal-head h3 { font-size:15px; font-weight:500; }
+  .modal-close { background:none; border:none; color:var(--muted); font-size:20px; cursor:pointer; }
+  .modal-body { overflow-y:auto; flex:1; }
+  .modal-miss-row { display:flex; align-items:center; gap:14px; padding:8px 22px; font-size:13px; border-bottom:1px solid var(--border); }
+  .modal-miss-row:last-child { border-bottom:none; }
+  .modal-id { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); min-width:50px; text-align:right; }
+  .modal-word { font-weight:500; min-width:160px; }
+  .modal-expected { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--orange); flex:1; }
+  .modal-foot { padding:14px 22px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+  .modal-foot span { font-size:12px; color:var(--muted); }
+  .txt-btn { padding:7px 16px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:12px; cursor:pointer; }
+  .txt-btn:hover { border-color:var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Vocab<span>·</span>Audio</div>
+  <nav>
+    <button class="tab-btn active" onclick="switchTab('setup')">⚙ Setup</button>
+    <button class="tab-btn" onclick="switchTab('player')" id="tab-player">▶ Player</button>
+    <button class="tab-btn" onclick="switchTab('download')" id="tab-dl">⬇ Télécharger lots</button>
+  </nav>
+  <div id="header-stats"><span>Charge le JSON et les MP3</span></div>
+</header>
+
+<!-- ══════════ SETUP PAGE ══════════ -->
+<div class="page active" id="setup-page">
+  <div style="max-width:680px;margin:40px auto;padding:0 24px;display:flex;flex-direction:column;gap:20px">
+
+    <div class="drop-card" id="json-card"
+         onclick="document.getElementById('json-input').click()"
+         ondragover="dndOver(event,this)" ondragleave="dndLeave(this)" ondrop="dndDrop(event,'json')">
+      <span class="icon">📄</span>
+      <h3>1 — Dépose ton vocabulary.json</h3>
+      <p>Le fichier JSON avec tous les mots, IDs, phonétiques et traductions.</p>
+      <input type="file" id="json-input" accept=".json" onchange="loadJSON(this.files)">
+    </div>
+
+    <div class="drop-card" id="mp3-card"
+         onclick="document.getElementById('mp3-input').click()"
+         ondragover="dndOver(event,this)" ondragleave="dndLeave(this)" ondrop="dndDrop(event,'mp3')">
+      <span class="icon">📁</span>
+      <h3>2 — Dépose le dossier contenant tes MP3</h3>
+      <p>
+        Glisse-dépose le <b>dossier</b> directement ici, ou clique pour le sélectionner.<br>
+        Les fichiers doivent être nommés comme le mot : <b>zoom.mp3</b>, <b>ability.mp3</b><br>
+        Sous-dossiers inclus automatiquement.
+      </p>
+      <input type="file" id="mp3-input" accept=".mp3,audio/mpeg" multiple webkitdirectory onchange="loadMP3s(this.files)">
+    </div>
+
+    <div id="missing-panel">
+      <div class="missing-header">
+        <h4>⚠️ Mots sans correspondance audio</h4>
+        <span class="miss-count-lbl" id="miss-count-lbl">—</span>
+        <button class="missing-toggle" onclick="openModal()">Voir tout ↗</button>
+      </div>
+      <div id="missing-preview"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════ PLAYER PAGE ══════════ -->
+<div class="page" id="player-page-wrap">
+  <div id="controls">
+    <input type="text" id="search" placeholder="Chercher un mot ou traduction…" oninput="filterWords()">
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="chip active" data-level="ALL" onclick="setLevel(this)">Tous</button>
+      <button class="chip" data-level="A1" onclick="setLevel(this)">A1</button>
+      <button class="chip" data-level="A2" onclick="setLevel(this)">A2</button>
+      <button class="chip" data-level="B1" onclick="setLevel(this)">B1</button>
+      <button class="chip" data-level="B2" onclick="setLevel(this)">B2</button>
+      <button class="chip" data-level="C1" onclick="setLevel(this)">C1</button>
+      <button class="chip" data-level="C2" onclick="setLevel(this)">C2</button>
+    </div>
+    <select class="sort-select" id="sort-sel" onchange="filterWords()">
+      <option value="id">Tri: ID</option>
+      <option value="alpha">Tri: A → Z</option>
+      <option value="level">Tri: Niveau</option>
+    </select>
+    <button class="miss-btn" id="miss-btn" onclick="openModal()">⚠️ Manquants</button>
+  </div>
+
+  <div id="player-page">
+    <div id="count-bar"></div>
+    <div id="word-list"></div>
+    <div id="empty-msg">Aucun résultat.</div>
+  </div>
+</div>
+
+<!-- ══════════ DOWNLOAD PAGE ══════════ -->
+<div class="page" id="download-page-wrap">
+  <div id="download-page">
+    <h2>⬇ Télécharger les audios par lots</h2>
+    <p class="sub">
+      Chaque fichier sera renommé <b>{id} {mot}.mp3</b> — ex: <b>10824 zoom.mp3</b><br>
+      Les lots sont de <b>1 000 fichiers</b> max, téléchargés en ZIP.<br>
+      Seuls les mots ayant un fichier audio chargé sont inclus.
+    </p>
+    <div id="dl-not-ready">⚠️ Charge d'abord le vocabulary.json et tes MP3 dans l'onglet Setup.</div>
+    <div id="batch-grid" class="batch-grid" style="display:none"></div>
+    <button class="dl-all-btn" id="dl-all-btn" style="display:none" onclick="downloadAll()">⬇ Tout télécharger (tous les lots)</button>
+  </div>
+</div>
+
+<!-- NOW PLAYING -->
+<div id="now-playing">
+  <span id="np-id"></span>
+  <span id="np-word"></span>
+  <span id="np-phonetic"></span>
+  <audio id="player" controls></audio>
+  <span id="np-trans"></span>
+  <button id="np-close" onclick="stopPlayer()">✕</button>
+</div>
+
+<!-- MODAL missing -->
+<div id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div id="modal-box">
+    <div class="modal-head">
+      <h3>Mots sans fichier audio</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-foot">
+      <span id="modal-foot-txt"></span>
+      <button class="txt-btn" onclick="downloadMissingTxt()">⬇ Télécharger .txt</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+// ── State ──
+let vocabulary = null;
+let audioMap = {};       // word.toLowerCase() → File
+let missingWords = [];
+let currentLevel = 'ALL';
+let currentlyPlayingRow = null;
+const BATCH = 1000;
+
+// ── Tabs ──
+function switchTab(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  const pageMap = { setup:'setup-page', player:'player-page-wrap', download:'download-page-wrap' };
+  document.getElementById(pageMap[name]).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (name === 'player') renderControls();
+  if (name === 'download') renderBatches();
+}
+
+// ── DnD ──
+function dndOver(e,el)  { e.preventDefault(); el.classList.add('drag-over'); }
+function dndLeave(el)   { el.classList.remove('drag-over'); }
+function dndDrop(e,type){ 
+  e.preventDefault(); dndLeave(e.currentTarget); 
+  if (type === 'json') { loadJSON(e.dataTransfer.files); return; }
+  // Handle folder drop using FileSystem API if available
+  const items = e.dataTransfer.items;
+  if (items && items.length) {
+    const allFiles = [];
+    let pending = 0;
+    function traverseEntry(entry) {
+      if (entry.isFile) {
+        pending++;
+        entry.file(f => { allFiles.push(f); pending--; if (pending===0) loadMP3s(allFiles); });
+      } else if (entry.isDirectory) {
+        const reader = entry.createReader();
+        function readAll() {
+          reader.readEntries(entries => {
+            if (!entries.length) return;
+            entries.forEach(traverseEntry);
+            readAll();
+          });
+        }
+        readAll();
+      }
+    }
+    for (let i=0; i<items.length; i++) {
+      const entry = items[i].webkitGetAsEntry ? items[i].webkitGetAsEntry() : null;
+      if (entry) traverseEntry(entry);
+    }
+    // fallback if no FileSystem API
+    if (!pending && !allFiles.length) loadMP3s(e.dataTransfer.files);
+  } else {
+    loadMP3s(e.dataTransfer.files);
+  }
+}
+
+// ── Load JSON ──
+function loadJSON(files) {
+  const f = Array.from(files).find(f => f.name.endsWith('.json'));
+  if (!f) return alert('Aucun fichier .json trouvé.');
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      vocabulary = JSON.parse(e.target.result);
+      markCard('json-card', `✅ ${f.name} — ${vocabulary.length.toLocaleString()} mots chargés`);
+      tryRender();
+    } catch { alert('JSON invalide.'); }
+  };
+  r.readAsText(f);
+}
+
+// ── Load MP3s ──
+function loadMP3s(files) {
+  let count = 0;
+  for (const f of files) {
+    if (!f.name.match(/\.mp3$/i)) continue;
+    const key = f.name.replace(/\.mp3$/i,'').toLowerCase().trim();
+    audioMap[key] = f;
+    count++;
+  }
+  if (count === 0) return;
+  markCard('mp3-card', `✅ ${count.toLocaleString()} fichier${count>1?'s':''} MP3 chargés`);
+  tryRender();
+}
+
+function markCard(id, msg) {
+  const c = document.getElementById(id);
+  c.classList.add('done');
+  c.querySelector('h3').textContent = msg;
+  c.onclick = null;
+}
+
+// ── Try render ──
+function tryRender() {
+  if (!vocabulary || Object.keys(audioMap).length === 0) return;
+  computeMissing();
+  renderMissingPanel();
+  updateStats();
+  // unlock tabs
+  document.getElementById('tab-player').style.opacity = '';
+  document.getElementById('tab-dl').style.opacity = '';
+  renderControls();
+}
+
+// ── Missing ──
+function computeMissing() {
+  missingWords = vocabulary.filter(w => !audioMap[w.word.toLowerCase().trim()]);
+}
+
+function renderMissingPanel() {
+  if (!missingWords.length) return;
+  document.getElementById('missing-panel').style.display = 'block';
+  document.getElementById('miss-count-lbl').textContent = `${missingWords.length.toLocaleString()} mots manquants`;
+  document.getElementById('miss-btn').style.display = 'inline-block';
+
+  const preview = missingWords.slice(0, 6);
+  document.getElementById('missing-preview').innerHTML = preview.map(w => `
+    <div class="miss-row">
+      <span class="miss-id">#${w.id}</span>
+      <span class="miss-word">${esc(w.word)}</span>
+      <span class="miss-file">${esc(w.word.toLowerCase())}.mp3</span>
+      <span class="miss-lvl level-${w.level}">${w.level}</span>
+    </div>`).join('') + (missingWords.length > 6 ? `
+    <div class="miss-row" style="justify-content:center;color:var(--muted);font-size:12px;border:none">
+      … et ${(missingWords.length-6).toLocaleString()} autres —
+      <span style="color:var(--accent);cursor:pointer;margin-left:4px" onclick="openModal()">voir tout</span>
+    </div>` : '');
+}
+
+// ── Stats header ──
+function updateStats() {
+  const total = vocabulary.length;
+  const withAudio = total - missingWords.length;
+  const pct = Math.round(withAudio / total * 100);
+  document.getElementById('header-stats').innerHTML = `
+    <span><b>${total.toLocaleString()}</b> mots</span>
+    <span class="cov-ok"><b>${withAudio.toLocaleString()}</b> avec audio (${pct}%)</span>
+    <span class="cov-miss"><b>${missingWords.length.toLocaleString()}</b> sans audio</span>`;
+}
+
+// ── Player controls ──
+function renderControls() {
+  if (!vocabulary) return;
+  document.getElementById('controls').style.display = 'flex';
+  filterWords();
+}
+
+function filterWords() {
+  if (!vocabulary) return;
+  const q = document.getElementById('search').value.toLowerCase().trim();
+  const sort = document.getElementById('sort-sel').value;
+
+  let list = vocabulary.filter(w => {
+    if (!audioMap[w.word.toLowerCase().trim()]) return false;
+    if (currentLevel !== 'ALL' && w.level !== currentLevel) return false;
+    if (q && !w.word.toLowerCase().includes(q) && !w.translation.toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  if (sort === 'alpha') list.sort((a,b) => a.word.localeCompare(b.word));
+  else if (sort === 'level') {
+    const o = {A1:0,A2:1,B1:2,B2:3,C1:4,C2:5};
+    list.sort((a,b) => (o[a.level]-o[b.level]) || a.word.localeCompare(b.word));
+  } else list.sort((a,b) => a.id - b.id);
+
+  const empty = document.getElementById('empty-msg');
+  const wl = document.getElementById('word-list');
+  document.getElementById('count-bar').innerHTML = list.length
+    ? `<b>${list.length.toLocaleString()}</b> mot${list.length>1?'s':''} affichés`
+    : '';
+
+  if (!list.length) { wl.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display = 'none';
+
+  let html = '';
+  if (sort === 'alpha') {
+    let last='';
+    for (const w of list) {
+      const l = w.word[0].toUpperCase();
+      if (l!==last) { html+=`<div class="section-label">${l}</div>`; last=l; }
+      html+=rowHTML(w);
+    }
+  } else if (sort === 'level') {
+    let last='';
+    for (const w of list) {
+      if (w.level!==last) { html+=`<div class="section-label">Niveau ${w.level}</div>`; last=w.level; }
+      html+=rowHTML(w);
+    }
+  } else { html=list.map(rowHTML).join(''); }
+
+  wl.innerHTML = html;
+  wl.querySelectorAll('.word-row').forEach(row => {
+    row.addEventListener('click', () => playWord(row.dataset.word, +row.dataset.id, row));
+  });
+}
+
+function rowHTML(w) {
+  return `<div class="word-row" data-word="${esc(w.word)}" data-id="${w.id}">
+    <span class="w-id">#${w.id}</span>
+    <button class="play-btn" tabindex="-1">▶</button>
+    <span class="w-word">${esc(w.word)}</span>
+    <span class="w-phonetic">${esc(w.phonetic)}</span>
+    <span class="w-trans">${esc(w.translation)}</span>
+    <span class="w-level level-${w.level}">${w.level}</span>
+  </div>`;
+}
+
+function setLevel(btn) {
+  currentLevel = btn.dataset.level;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  filterWords();
+}
+
+// ── Playback ──
+const player = document.getElementById('player');
+function playWord(word, id, rowEl) {
+  const file = audioMap[word.toLowerCase().trim()];
+  if (!file) return;
+  const v = vocabulary.find(v => v.id === id);
+  if (!v) return;
+  if (currentlyPlayingRow) currentlyPlayingRow.classList.remove('playing');
+  currentlyPlayingRow = rowEl; rowEl.classList.add('playing');
+  document.getElementById('np-id').textContent = `#${v.id}`;
+  document.getElementById('np-word').textContent = v.word;
+  document.getElementById('np-phonetic').textContent = v.phonetic;
+  document.getElementById('np-trans').textContent = v.translation;
+  player.src = URL.createObjectURL(file);
+  player.play();
+  document.getElementById('now-playing').style.display = 'flex';
+}
+player.addEventListener('ended', () => { if (currentlyPlayingRow) currentlyPlayingRow.classList.remove('playing'); });
+function stopPlayer() {
+  player.pause(); player.src='';
+  document.getElementById('now-playing').style.display='none';
+  if (currentlyPlayingRow) { currentlyPlayingRow.classList.remove('playing'); currentlyPlayingRow=null; }
+}
+
+// ══════════════════════════════════════
+// ── DOWNLOAD LOTS ──
+// ══════════════════════════════════════
+function getBatches() {
+  // Only words with audio, sorted by id
+  const withAudio = vocabulary
+    .filter(w => audioMap[w.word.toLowerCase().trim()])
+    .sort((a,b) => a.id - b.id);
+
+  const batches = [];
+  for (let i=0; i<withAudio.length; i+=BATCH) {
+    batches.push(withAudio.slice(i, i+BATCH));
+  }
+  return batches;
+}
+
+function renderBatches() {
+  if (!vocabulary || Object.keys(audioMap).length === 0) return;
+  const batches = getBatches();
+  const grid = document.getElementById('batch-grid');
+  const notReady = document.getElementById('dl-not-ready');
+  notReady.style.display = 'none';
+  grid.style.display = 'grid';
+  document.getElementById('dl-all-btn').style.display = 'block';
+
+  grid.innerHTML = batches.map((batch, i) => {
+    const first = batch[0]; const last = batch[batch.length-1];
+    return `
+    <div class="batch-card" id="batch-card-${i}">
+      <h4>Lot ${i+1} <span style="color:var(--muted);font-weight:400;font-size:12px">/ ${batches.length}</span></h4>
+      <div class="batch-meta">
+        <b>${batch.length}</b> fichiers ·
+        ID <b>${first.id}</b> → <b>${last.id}</b><br>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted)">
+          ${first.id} ${esc(first.word)}.mp3 … ${last.id} ${esc(last.word)}.mp3
+        </span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="prog-${i}" style="width:0%"></div></div>
+      <button class="dl-btn" id="dl-btn-${i}" onclick="downloadBatch(${i})">
+        ⬇ Télécharger ZIP (lot ${i+1})
+      </button>
+      <div class="dl-status" id="dl-status-${i}"></div>
+    </div>`;
+  }).join('');
+}
+
+async function downloadBatch(i) {
+  const batches = getBatches();
+  const batch = batches[i];
+  const btn = document.getElementById(`dl-btn-${i}`);
+  const status = document.getElementById(`dl-status-${i}`);
+  const prog = document.getElementById(`prog-${i}`);
+
+  btn.disabled = true;
+  const zip = new JSZip();
+  let done = 0;
+
+  for (const w of batch) {
+    const file = audioMap[w.word.toLowerCase().trim()];
+    if (!file) { done++; continue; }
+
+    // New filename: "{id} {word}.mp3"
+    const newName = `${w.id} ${w.word}.mp3`;
+
+    const arrayBuffer = await file.arrayBuffer();
+    zip.file(newName, arrayBuffer);
+    done++;
+
+    const pct = Math.round(done / batch.length * 100);
+    prog.style.width = pct + '%';
+    status.textContent = `Préparation… ${done}/${batch.length}`;
+  }
+
+  status.textContent = 'Compression ZIP…';
+  const first = batch[0]; const last = batch[batch.length-1];
+  const zipName = `vocab-lot${i+1}-id${first.id}-${last.id}.zip`;
+
+  const blob = await zip.generateAsync({ type:'blob', compression:'STORE' }, meta => {
+    prog.style.width = meta.percent.toFixed(0) + '%';
+    status.textContent = `ZIP… ${meta.percent.toFixed(0)}%`;
+  });
+
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = zipName;
+  a.click();
+
+  prog.style.width = '100%';
+  prog.style.background = 'var(--green)';
+  btn.textContent = '✅ Téléchargé';
+  btn.classList.add('done');
+  btn.disabled = false;
+  status.textContent = zipName;
+}
+
+async function downloadAll() {
+  const batches = getBatches();
+  const btn = document.getElementById('dl-all-btn');
+  btn.disabled = true;
+  for (let i=0; i<batches.length; i++) {
+    await downloadBatch(i);
+    await new Promise(r => setTimeout(r, 800)); // small pause between batches
+  }
+  btn.textContent = '✅ Tous les lots téléchargés';
+}
+
+// ── Modal ──
+function openModal() {
+  document.getElementById('modal-body').innerHTML = missingWords.map(w => `
+    <div class="modal-miss-row">
+      <span class="modal-id">#${w.id}</span>
+      <span class="modal-word">${esc(w.word)}</span>
+      <span class="modal-expected">${esc(w.word.toLowerCase())}.mp3</span>
+      <span class="miss-lvl level-${w.level}">${w.level}</span>
+    </div>`).join('');
+  document.getElementById('modal-foot-txt').textContent =
+    `${missingWords.length.toLocaleString()} mots sans audio sur ${vocabulary ? vocabulary.length.toLocaleString() : '?'} au total`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+
+function downloadMissingTxt() {
+  const lines = missingWords.map(w => `#${w.id}\t${w.word}\t→ ${w.word.toLowerCase()}.mp3\t[${w.level}]`);
+  const blob = new Blob([`Mots sans audio (${missingWords.length})\n\n` + lines.join('\n')], {type:'text/plain'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='mots-manquants.txt'; a.click();
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>
