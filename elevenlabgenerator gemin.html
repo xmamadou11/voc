@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ElevenLabs + Gemini — Générateur Audio & Dictées</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0f14;
+      --surface:   #141820;
+      --surface2:  #1c2230;
+      --border:    #252d3d;
+      --accent:    #4f8ef7;
+      --accent-glow: rgba(79,142,247,0.18);
+      --green:     #22d07a;
+      --green-dim: rgba(34,208,122,0.12);
+      --amber:     #f0a500;
+      --amber-dim: rgba(240,165,0,0.12);
+      --red:       #f04b4b;
+      --red-dim:   rgba(240,75,75,0.12);
+      --purple:    #a78bfa;
+      --purple-dim: rgba(167,139,250,0.12);
+      --text:      #e8ecf4;
+      --muted:     #6b7897;
+      --label:     #9aa3bd;
+      --mono:      'JetBrains Mono', monospace;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 40px 20px 60px;
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 6px;
+      margin-bottom: 20px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--muted);
+      background: transparent;
+      transition: background .2s, color .2s;
+    }
+    .tab-btn.active {
+      background: var(--surface2);
+      color: var(--text);
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: flex; flex-direction: column; gap: 16px; }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .header .badge {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: var(--accent-glow);
+      border: 1px solid rgba(79,142,247,.25);
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 14px;
+    }
+    .header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -.5px;
+      color: #fff;
+    }
+    .header p {
+      margin-top: 6px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    /* ── Layout ── */
+    .wrapper {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    /* ── Credit Bar ── */
+    .credit-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .credit-label {
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+    .credit-value {
+      font-family: var(--mono);
+      font-size: 26px;
+      font-weight: 600;
+      color: var(--green);
+      transition: color .4s;
+    }
+    .credit-value.warn  { color: var(--amber); }
+    .credit-value.danger{ color: var(--red); }
+    .credit-track {
+      flex: 1;
+      background: var(--surface2);
+      border-radius: 6px;
+      height: 8px;
+      overflow: hidden;
+    }
+    .credit-fill {
+      height: 100%;
+      background: var(--green);
+      border-radius: 6px;
+      transition: width .6s ease, background .4s;
+      width: 100%;
+    }
+    .credit-fill.warn  { background: var(--amber); }
+    .credit-fill.danger{ background: var(--red); }
+    .refresh-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      width: 34px; height: 34px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+      transition: border-color .2s, color .2s;
+      flex-shrink: 0;
+    }
+    .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Groq rate display ── */
+    .rate-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 22px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .rate-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .rate-label {
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+    .rate-value {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--purple);
+    }
+    .rate-track {
+      flex: 1;
+      background: var(--surface2);
+      border-radius: 6px;
+      height: 8px;
+      overflow: hidden;
+    }
+    .rate-fill {
+      height: 100%;
+      background: var(--purple);
+      border-radius: 6px;
+      transition: width .4s ease;
+      width: 0%;
+    }
+    .rate-fill.warn  { background: var(--amber); }
+    .rate-fill.danger{ background: var(--red); }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px;
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Form elements ── */
+    .field { margin-bottom: 14px; }
+    .field:last-child { margin-bottom: 0; }
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--label);
+      margin-bottom: 6px;
+    }
+    input[type="text"],
+    input[type="number"],
+    select,
+    input[type="file"] {
+      width: 100%;
+      padding: 10px 13px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    input:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    input[type="file"] { cursor: pointer; }
+    select option { background: var(--surface2); }
+    .row { display: flex; gap: 12px; }
+    .row .field { flex: 1; }
+
+    /* ── Buttons ── */
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .2s, transform .1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn:active { transform: scale(.98); }
+    .btn:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .btn-preview { background: rgba(240,165,0,.12); color: var(--amber); border: 1px solid rgba(240,165,0,.25); }
+    .btn-preview:hover:not(:disabled) { background: rgba(240,165,0,.2); }
+    .btn-go { background: var(--accent); color: #fff; margin-top: 4px; }
+    .btn-go:hover:not(:disabled) { background: #3a7de0; }
+    .btn-stop { background: var(--red-dim); color: var(--red); border: 1px solid rgba(240,75,75,.25); display: none; }
+    .btn-stop:hover { background: rgba(240,75,75,.22); }
+    .btn-groq { background: var(--purple-dim); color: var(--purple); border: 1px solid rgba(167,139,250,.3); margin-top: 4px; }
+    .btn-groq:hover:not(:disabled) { background: rgba(167,139,250,.22); }
+
+    /* ── Progress ── */
+    .progress-block {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .progress-block.active { display: flex; }
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+    .progress-title { color: var(--label); font-weight: 500; }
+    .progress-counter {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent);
+    }
+    .progress-counter.purple { color: var(--purple); }
+    .progress-track {
+      background: var(--surface2);
+      border-radius: 8px;
+      height: 10px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #7ab4ff);
+      border-radius: 8px;
+      width: 0%;
+      transition: width .4s ease;
+    }
+    .progress-fill.purple {
+      background: linear-gradient(90deg, var(--purple), #c4b5fd);
+    }
+    .progress-current {
+      font-size: 12px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    /* ── Log ── */
+    .log-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      max-height: 220px;
+      overflow-y: auto;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.7;
+      color: var(--muted);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .log-box::-webkit-scrollbar { width: 4px; }
+    .log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .log-ok   { color: var(--green); }
+    .log-warn { color: var(--amber); }
+    .log-err  { color: var(--red); }
+    .log-info { color: var(--accent); }
+    .log-purple { color: var(--purple); }
+
+    /* ── Alert banner ── */
+    .alert {
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 13px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .alert-warning { background: var(--amber-dim); border: 1px solid rgba(240,165,0,.3); color: var(--amber); }
+    .alert-info    { background: var(--purple-dim); border: 1px solid rgba(167,139,250,.3); color: var(--purple); }
+    .alert-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+
+    /* ── File status ── */
+    .file-status {
+      font-size: 12px;
+      font-family: var(--mono);
+      color: var(--muted);
+      margin-top: 6px;
+    }
+    .file-status.loaded { color: var(--green); }
+
+    /* ── Download link ── */
+    .download-link {
+      display: none;
+      margin-top: 10px;
+      padding: 10px 14px;
+      background: var(--green-dim);
+      border: 1px solid rgba(34,208,122,.25);
+      border-radius: 8px;
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .download-link.visible { display: block; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="badge">ElevenLabs + Gemini</div>
+  <h1>Générateur Audio & Dictées</h1>
+  <p>Génération audio TTS · Phrases de dictée CECRL · Traductions JSON</p>
+</div>
+
+<div class="wrapper">
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('audio')">🔊 Audio ElevenLabs</button>
+    <button class="tab-btn" onclick="switchTab('dictee')">✍️ Phrases Dictée (Gemini)</button>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       TAB 1 — ELEVENLABS AUDIO
+  ══════════════════════════════════════════ -->
+  <div class="tab-panel active" id="tab-audio">
+
+    <!-- Credit monitor -->
+    <div class="credit-panel">
+      <div>
+        <div class="credit-label">Crédits restants</div>
+        <div class="credit-value" id="creditValue">—</div>
+      </div>
+      <div class="credit-track">
+        <div class="credit-fill" id="creditFill" style="width:0%"></div>
+      </div>
+      <button class="refresh-btn" onclick="refreshCredits()" title="Actualiser les crédits">↻</button>
+    </div>
+
+    <!-- Step 1 : API -->
+    <div class="card">
+      <div class="card-title">Connexion API ElevenLabs</div>
+      <div class="field">
+        <label for="apiKey">Clé API ElevenLabs</label>
+        <input type="text" id="apiKey" placeholder="xi_api_key_…" autocomplete="off">
+      </div>
+      <button class="btn btn-secondary" onclick="chargerVoix()">Charger les voix disponibles</button>
+    </div>
+
+    <!-- Step 2 : Voice -->
+    <div class="card">
+      <div class="card-title">Voix & Modèle</div>
+      <div class="field">
+        <label for="voiceSelect">Sélectionner une voix</label>
+        <select id="voiceSelect" disabled>
+          <option>— Chargez les voix d'abord —</option>
+        </select>
+      </div>
+      <button class="btn btn-preview" id="previewBtn" onclick="ecouterExtrait()" disabled>🔊 Écouter un extrait</button>
+    </div>
+
+    <!-- Step 3 : File + params -->
+    <div class="card">
+      <div class="card-title">Fichier & Paramètres</div>
+
+      <div class="alert alert-warning" style="margin-bottom:14px">
+        <div class="alert-icon">⚠️</div>
+        <div>Le script s'arrêtera automatiquement et sauvegarde le ZIP si les crédits tombent à <strong>10 ou moins</strong>.</div>
+      </div>
+
+      <div class="field">
+        <label for="jsonFile">Fichier vocabulary.json</label>
+        <input type="file" id="jsonFile" accept=".json">
+        <div class="file-status" id="fileStatus">Aucun fichier chargé</div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="startId">ID de départ</label>
+          <input type="number" id="startId" value="51" min="1">
+        </div>
+        <div class="field">
+          <label for="maxWords">Nb de mots max</label>
+          <input type="number" id="maxWords" value="1300" min="1">
+        </div>
+      </div>
+
+      <!-- Progress (hidden until generation) -->
+      <div class="progress-block" id="progressBlock" style="margin: 14px 0 10px;">
+        <div class="progress-header">
+          <span class="progress-title">Progression</span>
+          <span class="progress-counter" id="progressCounter">0 / 0</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-current" id="progressCurrent">En attente…</div>
+      </div>
+
+      <button class="btn btn-go" id="actionBtn" onclick="lancerGeneration()" disabled>▶ Lancer la génération & ZIP</button>
+      <button class="btn btn-stop" id="stopBtn" onclick="stopGeneration()">⏹ Arrêter et sauvegarder le ZIP</button>
+    </div>
+
+    <!-- Log audio -->
+    <div class="card">
+      <div class="card-title">Journal Audio</div>
+      <div class="log-box" id="logBox">En attente de configuration…</div>
+    </div>
+
+  </div><!-- /tab-audio -->
+
+  <!-- ══════════════════════════════════════════
+       TAB 2 — GEMINI DICTATION
+  ══════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-dictee">
+
+    <!-- Gemini quota monitors -->
+    <div style="display:flex; flex-direction:column; gap:10px;">
+
+      <!-- Barre req/min -->
+      <div class="rate-panel">
+        <div class="rate-item">
+          <div class="rate-label">Cette minute</div>
+          <div class="rate-value" id="geminiReqCount">0</div>
+        </div>
+        <div class="rate-track">
+          <div class="rate-fill" id="geminiRateFill"></div>
+        </div>
+        <div class="rate-item">
+          <div class="rate-label">Limite/min</div>
+          <div class="rate-value" style="color:var(--muted)" id="geminiLimitDisplay">15</div>
+        </div>
+      </div>
+
+      <!-- Barre quota journalier -->
+      <div class="rate-panel">
+        <div class="rate-item">
+          <div class="rate-label">Req. aujourd'hui</div>
+          <div class="rate-value" id="geminiDailyCount">0</div>
+        </div>
+        <div class="rate-track">
+          <div class="rate-fill" id="geminiDailyFill" style="background: linear-gradient(90deg, var(--green), #5eead4);"></div>
+        </div>
+        <div class="rate-item">
+          <div class="rate-label">Quota/jour</div>
+          <div class="rate-value" style="color:var(--muted)" id="geminiDailyLimit">1500</div>
+        </div>
+        <button class="refresh-btn" onclick="resetDailyQuota()" title="Réinitialiser le compteur journalier (minuit)">↺</button>
+      </div>
+
+    </div>
+
+    <!-- Gemini API key -->
+    <div class="card">
+      <div class="card-title">Connexion API Gemini</div>
+      <div class="field">
+        <label for="geminiApiKey">Clé API Gemini</label>
+        <input type="text" id="geminiApiKey" placeholder="AIza…" autocomplete="off">
+      </div>
+      <div class="alert alert-info" style="margin-top:12px">
+        <div class="alert-icon">💡</div>
+        <div>Limites Gemini gratuit : <strong>Flash → 15 req/min · 1 500 req/jour</strong> · <strong>Pro → 2 req/min · 50 req/jour</strong>. Le générateur adapte automatiquement la cadence.</div>
+      </div>
+    </div>
+
+    <!-- File + params -->
+    <div class="card">
+      <div class="card-title">Fichier & Paramètres</div>
+
+      <div class="field">
+        <label for="geminiJsonFile">Fichier vocabulary.json</label>
+        <input type="file" id="geminiJsonFile" accept=".json">
+        <div class="file-status" id="geminiFileStatus">Aucun fichier chargé</div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="geminiStartId">ID de départ</label>
+          <input type="number" id="geminiStartId" value="1" min="1">
+        </div>
+        <div class="field">
+          <label for="geminiMaxWords">Nb de mots max</label>
+          <input type="number" id="geminiMaxWords" value="100" min="1">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="geminiModel">Modèle Gemini</label>
+        <select id="geminiModel" onchange="updateGeminiLimit()">
+          <option value="gemini-2.0-flash">gemini-2.0-flash (recommandé · 15 req/min · 1 500/jour)</option>
+          <option value="gemini-2.5-flash-preview-05-20">gemini-2.5-flash-preview (qualité · 10 req/min · 500/jour)</option>
+          <option value="gemini-1.5-flash">gemini-1.5-flash (rapide · 15 req/min · 1 500/jour)</option>
+          <option value="gemini-1.5-pro">gemini-1.5-pro (avancé · 2 req/min · 50/jour)</option>
+          <option value="gemini-2.5-pro-preview-06-05">gemini-2.5-pro-preview (premium · 5 req/min · 25/jour)</option>
+        </select>
+      </div>
+
+      <!-- Progress -->
+      <div class="progress-block" id="geminiProgressBlock" style="margin: 14px 0 10px;">
+        <div class="progress-header">
+          <span class="progress-title">Progression</span>
+          <span class="progress-counter purple" id="geminiProgressCounter">0 / 0</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill purple" id="geminiProgressFill"></div>
+        </div>
+        <div class="progress-current" id="geminiProgressCurrent">En attente…</div>
+      </div>
+
+      <button class="btn btn-groq" id="geminiActionBtn" onclick="lancerDictee()" disabled>✍️ Générer les phrases de dictée</button>
+      <button class="btn btn-stop" id="geminiStopBtn" onclick="stopDictee()">⏹ Arrêter et télécharger</button>
+      <a class="download-link" id="geminiDownloadLink">⬇️ Télécharger le JSON enrichi</a>
+    </div>
+
+    <!-- Log gemini -->
+    <div class="card">
+      <div class="card-title">Journal Gemini</div>
+      <div class="log-box" id="geminiLogBox">En attente de configuration…</div>
+    </div>
+
+  </div><!-- /tab-dictee -->
+
+</div><!-- /wrapper -->
+
+<script>
+  // ═══════════════════════════════════════════════════
+  // SHARED STATE
+  // ═══════════════════════════════════════════════════
+  let listeMots        = [];
+  let geminiListeMots  = [];
+  let maxCreditsKnown  = null;
+  let stopRequested    = false;
+  let geminiStopReq    = false;
+
+  // ── Gemini rate-limit & quota tracking ───────────
+  const GEMINI_RPM_MAP = {
+    'gemini-2.0-flash':               15,
+    'gemini-2.5-flash-preview-05-20': 10,
+    'gemini-1.5-flash':               15,
+    'gemini-1.5-pro':                  2,
+    'gemini-2.5-pro-preview-06-05':    5,
+  };
+  const GEMINI_RPD_MAP = {          // requests per day (free tier)
+    'gemini-2.0-flash':               1500,
+    'gemini-2.5-flash-preview-05-20':  500,
+    'gemini-1.5-flash':               1500,
+    'gemini-1.5-pro':                   50,
+    'gemini-2.5-pro-preview-06-05':     25,
+  };
+  const GEMINI_WINDOW_MS = 60_000;
+  let   geminiTimestamps  = [];   // timestamps dans la dernière minute
+
+  // Quota journalier — persisté dans localStorage avec date de reset
+  const DAILY_KEY = 'gemini_daily_quota';
+  function loadDailyQuota() {
+    try {
+      const raw = localStorage.getItem(DAILY_KEY);
+      if (!raw) return { date: todayStr(), count: 0 };
+      const obj = JSON.parse(raw);
+      if (obj.date !== todayStr()) return { date: todayStr(), count: 0 }; // nouveau jour
+      return obj;
+    } catch { return { date: todayStr(), count: 0 }; }
+  }
+  function saveDailyQuota(count) {
+    try { localStorage.setItem(DAILY_KEY, JSON.stringify({ date: todayStr(), count })); } catch {}
+  }
+  function todayStr() {
+    return new Date().toISOString().slice(0, 10);
+  }
+  function resetDailyQuota() {
+    try { localStorage.removeItem(DAILY_KEY); } catch {}
+    updateGeminiDailyUI(0);
+    glog('Compteur journalier réinitialisé.', 'info');
+  }
+
+  let geminiDailyUsed = loadDailyQuota().count;
+
+  function getGeminiRPM() {
+    const model = document.getElementById('geminiModel')?.value ?? 'gemini-2.0-flash';
+    return GEMINI_RPM_MAP[model] ?? 15;
+  }
+  function getGeminiRPD() {
+    const model = document.getElementById('geminiModel')?.value ?? 'gemini-2.0-flash';
+    return GEMINI_RPD_MAP[model] ?? 1500;
+  }
+  function updateGeminiLimit() {
+    const rpm = getGeminiRPM();
+    const rpd = getGeminiRPD();
+    const elMin = document.getElementById('geminiLimitDisplay');
+    const elDay = document.getElementById('geminiDailyLimit');
+    if (elMin) elMin.textContent = rpm;
+    if (elDay) elDay.textContent = rpd.toLocaleString('fr-FR');
+    updateGeminiRateUI();
+    updateGeminiDailyUI(geminiDailyUsed);
+  }
+
+  function updateGeminiRateUI() {
+    const maxRPM = getGeminiRPM();
+    const now = Date.now();
+    geminiTimestamps = geminiTimestamps.filter(t => now - t < GEMINI_WINDOW_MS);
+    const count = geminiTimestamps.length;
+    document.getElementById('geminiReqCount').textContent = count;
+    const fill = document.getElementById('geminiRateFill');
+    const pct  = Math.min(100, (count / maxRPM) * 100);
+    fill.style.width = pct + '%';
+    fill.className = 'rate-fill' + (pct >= 100 ? ' danger' : pct >= 70 ? ' warn' : '');
+  }
+
+  function updateGeminiDailyUI(used) {
+    const rpd  = getGeminiRPD();
+    const fill = document.getElementById('geminiDailyFill');
+    const cnt  = document.getElementById('geminiDailyCount');
+    if (!fill || !cnt) return;
+    cnt.textContent = used.toLocaleString('fr-FR');
+    const pct = Math.min(100, (used / rpd) * 100);
+    fill.style.width = pct + '%';
+    const base = 'rate-fill';
+    if (pct >= 95)      fill.className = base + ' danger';
+    else if (pct >= 75) fill.className = base + ' warn';
+    else                fill.className = base;
+    if (pct < 95) fill.style.background = 'linear-gradient(90deg, var(--green), #5eead4)';
+    else          fill.style.background = '';
+  }
+
+  // ── Tab switching ─────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll('.tab-btn').forEach((b, i) => {
+      b.classList.toggle('active', (i === 0 && name === 'audio') || (i === 1 && name === 'dictee'));
+    });
+    document.getElementById('tab-audio').classList.toggle('active', name === 'audio');
+    document.getElementById('tab-dictee').classList.toggle('active', name === 'dictee');
+  }
+
+  // ── Logging ──────────────────────────────────────
+  function log(msg, type = '', boxId = 'logBox') {
+    const box  = document.getElementById(boxId);
+    const span = document.createElement('span');
+    span.className  = type ? `log-${type}` : '';
+    span.textContent = msg + '\n';
+    box.appendChild(span);
+    box.scrollTop = box.scrollHeight;
+  }
+  const glog = (msg, type = '') => log(msg, type, 'geminiLogBox');
+
+  // Init UI quota au chargement
+  window.addEventListener('DOMContentLoaded', () => {
+    updateGeminiDailyUI(geminiDailyUsed);
+    updateGeminiRateUI();
+  });
+
+  // ═══════════════════════════════════════════════════
+  // ELEVENLABS AUDIO
+  // ═══════════════════════════════════════════════════
+
+  async function fetchCredits(apiKey) {
+    const r = await fetch('https://api.elevenlabs.io/v1/user/subscription', {
+      headers: { 'xi-api-key': apiKey }
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+    return { used: d.character_count ?? 0, limit: d.character_limit ?? null };
+  }
+
+  function updateCreditUI(remaining, total) {
+    const val  = document.getElementById('creditValue');
+    const fill = document.getElementById('creditFill');
+    val.textContent = remaining.toLocaleString('fr-FR');
+    const pct = total ? Math.max(0, Math.min(100, (remaining / total) * 100)) : 0;
+    fill.style.width = pct + '%';
+    val.className  = 'credit-value';
+    fill.className = 'credit-fill';
+    if (remaining <= 10)        { val.classList.add('danger'); fill.classList.add('danger'); }
+    else if (remaining <= 500)  { val.classList.add('warn');   fill.classList.add('warn');   }
+  }
+
+  async function refreshCredits() {
+    const apiKey = document.getElementById('apiKey').value.trim();
+    if (!apiKey) { log('Entrez votre clé API pour actualiser les crédits.', 'warn'); return; }
+    try {
+      const { used, limit } = await fetchCredits(apiKey);
+      const remaining = limit !== null ? limit - used : used;
+      if (maxCreditsKnown === null && limit !== null) maxCreditsKnown = limit;
+      updateCreditUI(remaining, maxCreditsKnown);
+      log(`Crédits actualisés : ${remaining.toLocaleString('fr-FR')} restants.`, 'ok');
+    } catch(e) {
+      log(`Impossible d'actualiser les crédits : ${e.message}`, 'err');
+    }
+  }
+
+  async function chargerVoix() {
+    const apiKey = document.getElementById('apiKey').value.trim();
+    if (!apiKey) { log('Veuillez entrer votre clé API.', 'warn'); return; }
+    log('Connexion à ElevenLabs…', 'info');
+    try {
+      const { used, limit } = await fetchCredits(apiKey);
+      const remaining = limit !== null ? limit - used : used;
+      maxCreditsKnown = limit;
+      updateCreditUI(remaining, maxCreditsKnown);
+    } catch(e) { /* non-blocking */ }
+    try {
+      const r = await fetch('https://api.elevenlabs.io/v1/voices', {
+        headers: { 'xi-api-key': apiKey }
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      const sel = document.getElementById('voiceSelect');
+      sel.innerHTML = '';
+      data.voices.forEach(v => {
+        const o = document.createElement('option');
+        o.value = v.voice_id;
+        o.dataset.preview = v.preview_url || '';
+        const acc = v.labels?.accent ? ` · ${v.labels.accent}` : '';
+        o.text = `${v.name}${acc} (${v.category})`;
+        sel.appendChild(o);
+      });
+      sel.disabled = false;
+      document.getElementById('previewBtn').disabled = false;
+      document.getElementById('actionBtn').disabled = false;
+      log(`${data.voices.length} voix chargées.`, 'ok');
+    } catch(e) {
+      log(`Erreur chargement voix : ${e.message}`, 'err');
+    }
+  }
+
+  function ecouterExtrait() {
+    const sel = document.getElementById('voiceSelect');
+    const opt = sel.options[sel.selectedIndex];
+    const url = opt?.dataset.preview;
+    if (!url) { log('Aucun extrait disponible pour cette voix.', 'warn'); return; }
+    log(`▶ Extrait : ${opt.text}`, 'info');
+    new Audio(url).play().catch(() => log('Erreur de lecture audio.', 'err'));
+  }
+
+  document.getElementById('jsonFile').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = evt => {
+      try {
+        listeMots = JSON.parse(evt.target.result);
+        const statusEl = document.getElementById('fileStatus');
+        statusEl.textContent = `✓ ${listeMots.length} mots chargés — ${file.name}`;
+        statusEl.className = 'file-status loaded';
+        log(`Fichier chargé : ${listeMots.length} mots (${file.name})`, 'ok');
+      } catch(err) {
+        log(`Erreur JSON : ${err.message}`, 'err');
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  function stopGeneration() {
+    stopRequested = true;
+    log('⏹ Arrêt demandé — sauvegarde du ZIP en cours…', 'warn');
+  }
+
+  async function lancerGeneration() {
+    const apiKey   = document.getElementById('apiKey').value.trim();
+    const voiceId  = document.getElementById('voiceSelect').value;
+    const startId  = parseInt(document.getElementById('startId').value) || 1;
+    const maxWords = parseInt(document.getElementById('maxWords').value) || 50;
+
+    if (!listeMots.length) { log('Veuillez charger vocabulary.json.', 'warn'); return; }
+
+    let startIndex = listeMots.findIndex(item => item.id === startId);
+    if (startIndex === -1) startIndex = Math.max(0, startId - 1);
+
+    const endIndex = Math.min(listeMots.length, startIndex + maxWords);
+    const total    = endIndex - startIndex;
+
+    if (total <= 0 || startIndex >= listeMots.length) {
+      log("L'ID de départ est hors limites.", 'err'); return;
+    }
+
+    stopRequested = false;
+    document.getElementById('actionBtn').disabled = true;
+    document.getElementById('stopBtn').style.display = 'flex';
+    const pb = document.getElementById('progressBlock');
+    pb.classList.add('active');
+
+    log(`--- Génération : ID ${startId} → ID ${listeMots[endIndex-1].id} (${total} mots) ---`, 'info');
+
+    const zip = new JSZip();
+    let generated = 0;
+
+    for (let i = startIndex; i < endIndex; i++) {
+      if (stopRequested) break;
+      const item  = listeMots[i];
+      const mot   = item.word;
+      const ordre = i - startIndex + 1;
+
+      const pct = Math.round(((ordre - 1) / total) * 100);
+      document.getElementById('progressFill').style.width = pct + '%';
+      document.getElementById('progressCounter').textContent = `${ordre - 1} / ${total}`;
+      document.getElementById('progressCurrent').textContent = `En cours : "${mot}" (ID ${item.id})`;
+      log(`[${ordre}/${total}] "${mot}" (ID ${item.id})…`);
+
+      try {
+        try {
+          const { used, limit } = await fetchCredits(apiKey);
+          const remaining = limit !== null ? limit - used : null;
+          if (remaining !== null) {
+            updateCreditUI(remaining, maxCreditsKnown ?? limit);
+            if (remaining <= 10) {
+              log(`⚠️ Crédits critiques (${remaining}) — arrêt automatique.`, 'warn');
+              stopRequested = true;
+              break;
+            }
+          }
+        } catch(_) {}
+
+        const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+          method: 'POST',
+          headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: mot,
+            model_id: 'eleven_multilingual_v2',
+            voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+          })
+        });
+
+        if (r.status === 429) {
+          log('⚠️ Rate limit — pause 10 s…', 'warn');
+          await new Promise(res => setTimeout(res, 10000));
+          i--; continue;
+        }
+        if (!r.ok) {
+          const txt = await r.text();
+          if (txt.includes('insufficient_credits')) {
+            log('❌ Crédits insuffisants — arrêt.', 'err');
+            break;
+          }
+          throw new Error(`API ${r.status}`);
+        }
+
+        const blob = await r.blob();
+        const safe = mot.replace(/[^a-zA-Z0-9\-_]/g, '_');
+        zip.file(`${safe}.mp3`, blob);
+        generated++;
+        log(`  ✓ Ajouté au ZIP`, 'ok');
+        await new Promise(res => setTimeout(res, 400));
+
+      } catch(e) {
+        log(`❌ Erreur "${mot}" : ${e.message}`, 'err');
+        break;
+      }
+    }
+
+    document.getElementById('progressFill').style.width = '100%';
+    document.getElementById('progressCounter').textContent = `${generated} / ${total}`;
+    document.getElementById('progressCurrent').textContent = `Génération terminée — ${generated} fichiers.`;
+    log(`\nCompression du ZIP (${generated} fichiers)…`, 'info');
+
+    try {
+      const content = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(content);
+      const a   = document.createElement('a');
+      const lastId = listeMots[Math.min(startIndex + generated - 1, listeMots.length - 1)]?.id ?? startId;
+      a.href     = url;
+      a.download = `vocabulaire_audio_${startId}_a_${lastId}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      log('🎉 ZIP téléchargé avec succès !', 'ok');
+    } catch(e) {
+      log(`Erreur ZIP : ${e.message}`, 'err');
+    }
+
+    document.getElementById('actionBtn').disabled = false;
+    document.getElementById('stopBtn').style.display = 'none';
+  }
+
+  // ═══════════════════════════════════════════════════
+  // GEMINI — DICTATION GENERATOR
+  // ═══════════════════════════════════════════════════
+
+  document.getElementById('geminiJsonFile').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = evt => {
+      try {
+        geminiListeMots = JSON.parse(evt.target.result);
+        const statusEl = document.getElementById('geminiFileStatus');
+        statusEl.textContent = `✓ ${geminiListeMots.length} mots chargés — ${file.name}`;
+        statusEl.className = 'file-status loaded';
+        document.getElementById('geminiActionBtn').disabled = false;
+        glog(`Fichier chargé : ${geminiListeMots.length} mots (${file.name})`, 'ok');
+      } catch(err) {
+        glog(`Erreur JSON : ${err.message}`, 'err');
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  function stopDictee() {
+    geminiStopReq = true;
+    glog('⏹ Arrêt demandé — téléchargement du JSON en cours…', 'warn');
+  }
+
+  // ── Rate limiter : attendre si on a déjà N req dans la dernière minute ──
+  async function geminiRateWait() {
+    const maxRPM = getGeminiRPM();
+    const now = Date.now();
+    geminiTimestamps = geminiTimestamps.filter(t => now - t < GEMINI_WINDOW_MS);
+
+    if (geminiTimestamps.length >= maxRPM) {
+      const oldest = geminiTimestamps[0];
+      const waitMs = GEMINI_WINDOW_MS - (now - oldest) + 200;
+      glog(`⏳ Limite ${maxRPM} req/min atteinte — pause ${Math.ceil(waitMs/1000)} s…`, 'warn');
+      await new Promise(res => setTimeout(res, waitMs));
+      return geminiRateWait();
+    }
+  }
+
+  // ── Single Gemini API call ────────────────────────
+  async function callGemini(apiKey, model, prompt, retries = 0) {
+    const MAX_RETRIES = 3;
+    await geminiRateWait();
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          maxOutputTokens: 1000,
+          temperature: 0.7
+        }
+      })
+    });
+
+    geminiTimestamps.push(Date.now());
+    geminiDailyUsed++;
+    saveDailyQuota(geminiDailyUsed);
+    updateGeminiRateUI();
+    updateGeminiDailyUI(geminiDailyUsed);
+
+    if (r.status === 429) {
+      if (retries >= MAX_RETRIES) throw new Error('Trop de tentatives 429 — arrêt.');
+      const backoff = 30000 * (retries + 1);
+      glog(`⚠️ 429 rate limit — pause ${backoff/1000} s… (tentative ${retries+1}/${MAX_RETRIES})`, 'warn');
+      await new Promise(res => setTimeout(res, backoff));
+      return callGemini(apiKey, model, prompt, retries + 1);
+    }
+
+    if (!r.ok) {
+      const txt = await r.text();
+      throw new Error(`Gemini API ${r.status}: ${txt.slice(0, 200)}`);
+    }
+
+    const data = await r.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  }
+
+  // ── Build prompt for one word ─────────────────────
+  function buildDictationPrompt(item) {
+    const { word, level, translation } = item;
+
+    const levelDescriptions = {
+      A1: 'très débutant (A1) — phrases très courtes, vocabulaire de base du quotidien, présent simple uniquement',
+      A2: 'débutant (A2) — phrases simples avec quelques connecteurs, vocabulaire familier, temps simples',
+      B1: 'intermédiaire (B1) — phrases de longueur moyenne, vocabulaire courant varié, différents temps',
+      B2: 'intermédiaire supérieur (B2) — phrases plus élaborées, nuances, subordonnées simples',
+      C1: 'avancé (C1) — phrases complexes, vocabulaire riche, structures variées',
+      C2: 'maîtrise (C2) — phrases sophistiquées, style naturel et idiomatique'
+    };
+
+    const levelDesc = levelDescriptions[level] || 'intermédiaire';
+
+    const forbiddenThemes = 'entreprise, finance, banque, investissement, marketing, publicité professionnelle, vente, management, ressources humaines, informatique professionnelle, programmation, cloud, bases de données, cybersécurité, ingénierie, recherche scientifique, jargon académique, jargon juridique, jargon médical spécialisé';
+    const allowedThemes   = 'famille, maison, amis, école, loisirs, voyages, nourriture, courses, sport, animaux, météo, santé courante, transport, vacances, conversations quotidiennes';
+
+    return `You are a language learning content creator specializing in English dictation sentences.
+
+Word: "${word}"
+CEFR Level: ${level} (${levelDesc})
+French translation hint: ${translation}
+
+Your task: Generate EXACTLY this JSON object (no markdown, no explanation, raw JSON only):
+{
+  "dictationSentenceEN": "<one natural English sentence using the word '${word}', perfectly adapted to ${level} level>",
+  "dictationSentenceFR": ["<translation/synonym 1>", "<translation/synonym 2>", "<translation/synonym 3>", "<translation/synonym 4>", "<translation/synonym 5>"]
+}
+
+Rules for dictationSentenceEN:
+- The sentence MUST contain the word "${word}" exactly as written
+- Grammar and vocabulary MUST match ${level} level (${levelDesc})
+- Topic MUST be from: ${allowedThemes}
+- Topic MUST NOT be from: ${forbiddenThemes}
+- The sentence must feel natural, not forced
+- Do NOT copy exampleEnglish if it exists
+
+Rules for dictationSentenceFR:
+- Exactly 5 French translations of the FULL dictationSentenceEN sentence
+- Each translation must reflect a DIFFERENT possible interpretation of the sentence, not just a stylistic variation
+- Ambiguity can arise from: (1) polysemous words (e.g. "right" = droite / raison / droit), (2) sentence structure that English leaves ambiguous but French forces you to resolve, (3) context or tone (literal vs ironic vs figurative meaning)
+- If the sentence has fewer than 5 genuine interpretations, you may include close paraphrases, but always prioritize distinct meanings first
+- All 5 must be grammatically correct French sentences
+
+Return ONLY the raw JSON object, no backticks, no markdown.`;
+  }
+
+  // ── Main dictation generation loop ───────────────
+  async function lancerDictee() {
+    const apiKey   = document.getElementById('geminiApiKey').value.trim();
+    const model    = document.getElementById('geminiModel').value;
+    const startId  = parseInt(document.getElementById('geminiStartId').value) || 1;
+    const maxWords = parseInt(document.getElementById('geminiMaxWords').value) || 100;
+
+    if (!apiKey)               { glog('Veuillez entrer votre clé API Gemini.', 'warn'); return; }
+    if (!geminiListeMots.length) { glog('Veuillez charger vocabulary.json.', 'warn'); return; }
+
+    // Vérifier quota journalier
+    const rpd = getGeminiRPD();
+    if (geminiDailyUsed >= rpd) {
+      glog(`❌ Quota journalier atteint (${geminiDailyUsed}/${rpd} req). Revenez demain ou changez de modèle.`, 'err');
+      return;
+    }
+
+    let startIndex = geminiListeMots.findIndex(item => item.id === startId);
+    if (startIndex === -1) startIndex = Math.max(0, startId - 1);
+
+    const endIndex = Math.min(geminiListeMots.length, startIndex + maxWords);
+    const total    = endIndex - startIndex;
+
+    if (total <= 0 || startIndex >= geminiListeMots.length) {
+      glog("L'ID de départ est hors limites.", 'err'); return;
+    }
+
+    geminiStopReq = false;
+    document.getElementById('geminiActionBtn').disabled = true;
+    document.getElementById('geminiStopBtn').style.display = 'flex';
+    document.getElementById('geminiDownloadLink').classList.remove('visible');
+    document.getElementById('geminiProgressBlock').classList.add('active');
+
+    glog(`--- Dictée Gemini : ID ${startId} → ID ${geminiListeMots[endIndex-1].id} (${total} mots) | modèle : ${model} ---`, 'purple');
+    glog(`Limites : ${getGeminiRPM()} req/min · ${rpd - geminiDailyUsed} req restantes aujourd'hui.`, 'info');
+
+    const resultData = geminiListeMots.map(item => ({ ...item }));
+    let processed = 0;
+    let errors    = 0;
+    let lastSuccessIndex = startIndex; // pour le nom du fichier
+
+    for (let i = startIndex; i < endIndex; i++) {
+      if (geminiStopReq) break;
+
+      // Vérifier quota journalier en cours de route
+      if (geminiDailyUsed >= rpd) {
+        glog(`⛔ Quota journalier atteint (${geminiDailyUsed}/${rpd}) — arrêt automatique.`, 'err');
+        break;
+      }
+
+      const item  = geminiListeMots[i];
+      const mot   = item.word;
+      const ordre = i - startIndex + 1;
+
+      const pct = Math.round(((ordre - 1) / total) * 100);
+      document.getElementById('geminiProgressFill').style.width = pct + '%';
+      document.getElementById('geminiProgressCounter').textContent = `${ordre - 1} / ${total}`;
+      document.getElementById('geminiProgressCurrent').textContent = `En cours : "${mot}" (ID ${item.id}, ${item.level})`;
+
+      glog(`[${ordre}/${total}] "${mot}" (ID ${item.id}, ${item.level})…`);
+
+      try {
+        const prompt  = buildDictationPrompt(item);
+        const rawResp = await callGemini(apiKey, model, prompt);
+
+        let parsed;
+        try {
+          const clean = rawResp.replace(/```json|```/g, '').trim();
+          parsed = JSON.parse(clean);
+        } catch(parseErr) {
+          glog(`  ⚠️ JSON invalide pour "${mot}" — skipping. Réponse brute : ${rawResp.slice(0,120)}`, 'warn');
+          errors++;
+          continue;
+        }
+
+        const sentEN = parsed.dictationSentenceEN;
+        const sentFR = parsed.dictationSentenceFR;
+
+        if (typeof sentEN !== 'string' || !Array.isArray(sentFR) || sentFR.length !== 5) {
+          glog(`  ⚠️ Structure invalide pour "${mot}" — skipping.`, 'warn');
+          errors++;
+          continue;
+        }
+
+        const target = resultData.find(r => r.id === item.id);
+        if (target) {
+          Object.assign(target, {
+            id:                  target.id,
+            word:                target.word,
+            phonetic:            target.phonetic,
+            level:               target.level,
+            translation:         target.translation,
+            exampleEnglish:      target.exampleEnglish,
+            exampleFrench:       target.exampleFrench,
+            dictationSentenceEN: sentEN,
+            dictationSentenceFR: sentFR
+          });
+        }
+
+        processed++;
+        lastSuccessIndex = i;
+        glog(`  ✓ "${mot}" → ${sentEN.slice(0, 60)}${sentEN.length > 60 ? '…' : ''}`, 'ok');
+
+      } catch(e) {
+        glog(`❌ Erreur "${mot}" : ${e.message}`, 'err');
+        errors++;
+        await new Promise(res => setTimeout(res, 3000));
+      }
+    }
+
+    document.getElementById('geminiProgressFill').style.width = '100%';
+    document.getElementById('geminiProgressCounter').textContent = `${processed} / ${total}`;
+    document.getElementById('geminiProgressCurrent').textContent = `Terminé — ${processed} phrases générées, ${errors} erreurs.`;
+
+    glog(`\n✅ Génération terminée : ${processed} réussies, ${errors} erreurs.`, 'ok');
+    glog('Préparation du téléchargement JSON…', 'info');
+
+    // Utilise lastSuccessIndex pour le nom de fichier (évite le bug processed=0)
+    const toId = processed > 0
+      ? geminiListeMots[lastSuccessIndex]?.id ?? startId
+      : startId;
+    triggerGeminiDownload(resultData, startId, toId);
+
+    document.getElementById('geminiActionBtn').disabled = false;
+    document.getElementById('geminiStopBtn').style.display = 'none';
+  }
+
+  function triggerGeminiDownload(data, fromId, toId) {
+    const jsonStr  = JSON.stringify(data, null, 2);
+    const blob     = new Blob([jsonStr], { type: 'application/json' });
+    const url      = URL.createObjectURL(blob);
+    const filename = `vocabulary_dictation_${fromId}_a_${toId}.json`;
+
+    const link = document.getElementById('geminiDownloadLink');
+    link.href        = url;
+    link.download    = filename;
+    link.textContent = `⬇️ Télécharger ${filename}`;
+    link.classList.add('visible');
+
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    glog(`🎉 JSON téléchargé : ${filename}`, 'ok');
+  }
+</script>
+</body>
+</html>
