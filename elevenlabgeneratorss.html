@@ -1,0 +1,1481 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ElevenLabs + Groq — Générateur Audio & Dictées</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0f14;
+      --surface:   #141820;
+      --surface2:  #1c2230;
+      --border:    #252d3d;
+      --accent:    #4f8ef7;
+      --accent-glow: rgba(79,142,247,0.18);
+      --green:     #22d07a;
+      --green-dim: rgba(34,208,122,0.12);
+      --amber:     #f0a500;
+      --amber-dim: rgba(240,165,0,0.12);
+      --red:       #f04b4b;
+      --red-dim:   rgba(240,75,75,0.12);
+      --purple:    #a78bfa;
+      --purple-dim: rgba(167,139,250,0.12);
+      --text:      #e8ecf4;
+      --muted:     #6b7897;
+      --label:     #9aa3bd;
+      --mono:      'JetBrains Mono', monospace;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 40px 20px 60px;
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 6px;
+      margin-bottom: 20px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--muted);
+      background: transparent;
+      transition: background .2s, color .2s;
+    }
+    .tab-btn.active {
+      background: var(--surface2);
+      color: var(--text);
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: flex; flex-direction: column; gap: 16px; }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .header .badge {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: var(--accent-glow);
+      border: 1px solid rgba(79,142,247,.25);
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 14px;
+    }
+    .header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -.5px;
+      color: #fff;
+    }
+    .header p {
+      margin-top: 6px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    /* ── Layout ── */
+    .wrapper {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    /* ── Credit Bar ── */
+    .credit-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .credit-label {
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+    .credit-value {
+      font-family: var(--mono);
+      font-size: 26px;
+      font-weight: 600;
+      color: var(--green);
+      transition: color .4s;
+    }
+    .credit-value.warn  { color: var(--amber); }
+    .credit-value.danger{ color: var(--red); }
+    .credit-track {
+      flex: 1;
+      background: var(--surface2);
+      border-radius: 6px;
+      height: 8px;
+      overflow: hidden;
+    }
+    .credit-fill {
+      height: 100%;
+      background: var(--green);
+      border-radius: 6px;
+      transition: width .6s ease, background .4s;
+      width: 100%;
+    }
+    .credit-fill.warn  { background: var(--amber); }
+    .credit-fill.danger{ background: var(--red); }
+    .refresh-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      width: 34px; height: 34px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+      transition: border-color .2s, color .2s;
+      flex-shrink: 0;
+    }
+    .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Groq rate display ── */
+    .rate-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 22px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .rate-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .rate-label {
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+    .rate-value {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--purple);
+    }
+    .rate-track {
+      flex: 1;
+      background: var(--surface2);
+      border-radius: 6px;
+      height: 8px;
+      overflow: hidden;
+    }
+    .rate-fill {
+      height: 100%;
+      background: var(--purple);
+      border-radius: 6px;
+      transition: width .4s ease;
+      width: 0%;
+    }
+    .rate-fill.warn  { background: var(--amber); }
+    .rate-fill.danger{ background: var(--red); }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px;
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Form elements ── */
+    .field { margin-bottom: 14px; }
+    .field:last-child { margin-bottom: 0; }
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--label);
+      margin-bottom: 6px;
+    }
+    input[type="text"],
+    input[type="number"],
+    select,
+    input[type="file"] {
+      width: 100%;
+      padding: 10px 13px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    input:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    input[type="file"] { cursor: pointer; }
+    select option { background: var(--surface2); }
+    .row { display: flex; gap: 12px; }
+    .row .field { flex: 1; }
+
+    /* ── Buttons ── */
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .2s, transform .1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn:active { transform: scale(.98); }
+    .btn:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .btn-preview { background: rgba(240,165,0,.12); color: var(--amber); border: 1px solid rgba(240,165,0,.25); }
+    .btn-preview:hover:not(:disabled) { background: rgba(240,165,0,.2); }
+    .btn-go { background: var(--accent); color: #fff; margin-top: 4px; }
+    .btn-go:hover:not(:disabled) { background: #3a7de0; }
+    .btn-stop { background: var(--red-dim); color: var(--red); border: 1px solid rgba(240,75,75,.25); display: none; }
+    .btn-stop:hover { background: rgba(240,75,75,.22); }
+    .btn-groq { background: var(--purple-dim); color: var(--purple); border: 1px solid rgba(167,139,250,.3); margin-top: 4px; }
+    .btn-groq:hover:not(:disabled) { background: rgba(167,139,250,.22); }
+
+    /* ── Progress ── */
+    .progress-block {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .progress-block.active { display: flex; }
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+    .progress-title { color: var(--label); font-weight: 500; }
+    .progress-counter {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent);
+    }
+    .progress-counter.purple { color: var(--purple); }
+    .progress-track {
+      background: var(--surface2);
+      border-radius: 8px;
+      height: 10px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #7ab4ff);
+      border-radius: 8px;
+      width: 0%;
+      transition: width .4s ease;
+    }
+    .progress-fill.purple {
+      background: linear-gradient(90deg, var(--purple), #c4b5fd);
+    }
+    .progress-current {
+      font-size: 12px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    /* ── Log ── */
+    .log-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      max-height: 220px;
+      overflow-y: auto;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.7;
+      color: var(--muted);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .log-box::-webkit-scrollbar { width: 4px; }
+    .log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .log-ok   { color: var(--green); }
+    .log-warn { color: var(--amber); }
+    .log-err  { color: var(--red); }
+    .log-info { color: var(--accent); }
+    .log-purple { color: var(--purple); }
+
+    /* ── Alert banner ── */
+    .alert {
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 13px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .alert-warning { background: var(--amber-dim); border: 1px solid rgba(240,165,0,.3); color: var(--amber); }
+    .alert-info    { background: var(--purple-dim); border: 1px solid rgba(167,139,250,.3); color: var(--purple); }
+    .alert-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+
+    /* ── File status ── */
+    .file-status {
+      font-size: 12px;
+      font-family: var(--mono);
+      color: var(--muted);
+      margin-top: 6px;
+    }
+    .file-status.loaded { color: var(--green); }
+
+    /* ── Download link ── */
+    .download-link {
+      display: none;
+      margin-top: 10px;
+      padding: 10px 14px;
+      background: var(--green-dim);
+      border: 1px solid rgba(34,208,122,.25);
+      border-radius: 8px;
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .download-link.visible { display: block; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="badge">ElevenLabs + Groq</div>
+  <h1>Générateur Audio & Dictées</h1>
+  <p>Génération audio TTS · Phrases de dictée CECRL · Traductions JSON</p>
+</div>
+
+<div class="wrapper">
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('audio')">🔊 Audio ElevenLabs</button>
+    <button class="tab-btn" onclick="switchTab('dictee')">✍️ Phrases Dictée (Groq)</button>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       TAB 1 — ELEVENLABS AUDIO
+  ══════════════════════════════════════════ -->
+  <div class="tab-panel active" id="tab-audio">
+
+    <!-- Credit monitor -->
+    <div class="credit-panel">
+      <div>
+        <div class="credit-label">Crédits restants</div>
+        <div class="credit-value" id="creditValue">—</div>
+      </div>
+      <div class="credit-track">
+        <div class="credit-fill" id="creditFill" style="width:0%"></div>
+      </div>
+      <button class="refresh-btn" onclick="refreshCredits()" title="Actualiser les crédits">↻</button>
+    </div>
+
+    <!-- Step 1 : API -->
+    <div class="card">
+      <div class="card-title">Connexion API ElevenLabs</div>
+      <div class="field">
+        <label for="apiKey">Clé API ElevenLabs</label>
+        <input type="text" id="apiKey" placeholder="xi_api_key_…" autocomplete="off">
+      </div>
+      <button class="btn btn-secondary" onclick="chargerVoix()">Charger les voix disponibles</button>
+    </div>
+
+    <!-- Step 2 : Voice -->
+    <div class="card">
+      <div class="card-title">Voix & Modèle</div>
+      <div class="field">
+        <label for="voiceSelect">Sélectionner une voix</label>
+        <select id="voiceSelect" disabled>
+          <option>— Chargez les voix d'abord —</option>
+        </select>
+      </div>
+      <button class="btn btn-preview" id="previewBtn" onclick="ecouterExtrait()" disabled>🔊 Écouter un extrait</button>
+    </div>
+
+    <!-- Step 3 : File + params -->
+    <div class="card">
+      <div class="card-title">Fichier & Paramètres</div>
+
+      <div class="alert alert-warning" style="margin-bottom:14px">
+        <div class="alert-icon">⚠️</div>
+        <div>Le script s'arrêtera automatiquement et sauvegarde le ZIP si les crédits tombent à <strong>10 ou moins</strong>.</div>
+      </div>
+
+      <div class="field">
+        <label for="jsonFile">Fichier vocabulary.json</label>
+        <input type="file" id="jsonFile" accept=".json">
+        <div class="file-status" id="fileStatus">Aucun fichier chargé</div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="startId">ID de départ</label>
+          <input type="number" id="startId" value="51" min="1">
+        </div>
+        <div class="field">
+          <label for="maxWords">Nb de mots max</label>
+          <input type="number" id="maxWords" value="1300" min="1">
+        </div>
+      </div>
+
+      <!-- Progress (hidden until generation) -->
+      <div class="progress-block" id="progressBlock" style="margin: 14px 0 10px;">
+        <div class="progress-header">
+          <span class="progress-title">Progression</span>
+          <span class="progress-counter" id="progressCounter">0 / 0</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-current" id="progressCurrent">En attente…</div>
+      </div>
+
+      <button class="btn btn-go" id="actionBtn" onclick="lancerGeneration()" disabled>▶ Lancer la génération & ZIP</button>
+      <button class="btn btn-stop" id="stopBtn" onclick="stopGeneration()">⏹ Arrêter et sauvegarder le ZIP</button>
+    </div>
+
+    <!-- Log audio -->
+    <div class="card">
+      <div class="card-title">Journal Audio</div>
+      <div class="log-box" id="logBox">En attente de configuration…</div>
+    </div>
+
+  </div><!-- /tab-audio -->
+
+  <!-- ══════════════════════════════════════════
+       TAB 2 — GROQ DICTATION
+  ══════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-dictee">
+
+    <!-- Groq rate monitor -->
+    <div class="rate-panel">
+      <div class="rate-item">
+        <div class="rate-label">Req. cette minute</div>
+        <div class="rate-value" id="groqReqCount">0</div>
+      </div>
+      <div class="rate-track">
+        <div class="rate-fill" id="groqRateFill"></div>
+      </div>
+      <div class="rate-item">
+        <div class="rate-label">Limite/min</div>
+        <div class="rate-value" id="groqRateLimit" style="color:var(--muted)">—</div>
+      </div>
+    </div>
+
+    <!-- Groq API key -->
+    <div class="card">
+      <div class="card-title">Connexion API Groq</div>
+      <div class="row" style="align-items:flex-end">
+        <div class="field" style="margin-bottom:0">
+          <label for="groqApiKey">Clé API Groq</label>
+          <input type="text" id="groqApiKey" placeholder="gsk_…" autocomplete="off">
+        </div>
+        <button class="btn btn-secondary" id="groqLoadModelsBtn" onclick="chargerModelsGroq()" style="width:auto;white-space:nowrap;padding:10px 18px;flex-shrink:0">⟳ Charger les modèles</button>
+      </div>
+      <div id="groqModelsStatus" class="file-status" style="margin-top:8px">Entrez votre clé puis cliquez sur Charger les modèles.</div>
+
+      <!-- Models table -->
+      <div id="groqModelsTable" style="display:none;margin-top:14px">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px">Modèles disponibles</div>
+        <div style="overflow-x:auto">
+          <table id="modelsTableEl" style="width:100%;border-collapse:collapse;font-size:12px;font-family:var(--mono)">
+            <thead>
+              <tr style="color:var(--muted);border-bottom:1px solid var(--border)">
+                <th style="text-align:left;padding:6px 8px;font-weight:500">Modèle</th>
+                <th style="text-align:right;padding:6px 8px;font-weight:500">Req/min</th>
+                <th style="text-align:right;padding:6px 8px;font-weight:500">Tok/min</th>
+                <th style="text-align:right;padding:6px 8px;font-weight:500">Req/jour</th>
+                <th style="text-align:center;padding:6px 8px;font-weight:500">Choisir</th>
+              </tr>
+            </thead>
+            <tbody id="modelsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- File + params -->
+    <div class="card">
+      <div class="card-title">Fichier & Paramètres</div>
+
+      <div class="field">
+        <label for="groqJsonFile">Fichier vocabulary.json</label>
+        <input type="file" id="groqJsonFile" accept=".json">
+        <div class="file-status" id="groqFileStatus">Aucun fichier chargé</div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="groqStartId">ID de départ</label>
+          <input type="number" id="groqStartId" value="1" min="1">
+        </div>
+        <div class="field">
+          <label for="groqMaxWords">Nb de mots max</label>
+          <input type="number" id="groqMaxWords" value="100" min="1">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="groqModel">Modèle sélectionné</label>
+        <select id="groqModel">
+          <option value="openai/gpt-oss-120b">openai/gpt-oss-120b</option>
+          <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</option>
+          <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
+        </select>
+        <div id="groqModelLimitInfo" class="file-status" style="margin-top:6px"></div>
+      </div>
+
+      <!-- ETA panel -->
+      <div id="groqEtaPanel" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:2px">Temps restant estimé</div>
+            <div id="groqEtaValue" style="font-family:var(--mono);font-size:22px;font-weight:600;color:var(--amber)">—</div>
+          </div>
+          <div>
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:2px">Fin estimée</div>
+            <div id="groqEtaEnd" style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--label)">—</div>
+          </div>
+          <div>
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:2px">Vitesse</div>
+            <div id="groqEtaSpeed" style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--purple)">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Progress -->
+      <div class="progress-block" id="groqProgressBlock" style="margin: 14px 0 10px;">
+        <div class="progress-header">
+          <span class="progress-title">Progression</span>
+          <span class="progress-counter purple" id="groqProgressCounter">0 / 0</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill purple" id="groqProgressFill"></div>
+        </div>
+        <div class="progress-current" id="groqProgressCurrent">En attente…</div>
+      </div>
+
+      <button class="btn btn-groq" id="groqActionBtn" onclick="lancerDictee()" disabled>✍️ Générer les phrases de dictée</button>
+      <button class="btn btn-stop" id="groqStopBtn" onclick="stopDictee()">⏹ Arrêter et télécharger</button>
+      <a class="download-link" id="groqDownloadLink">⬇️ Télécharger le JSON enrichi</a>
+    </div>
+
+    <!-- Log groq -->
+    <div class="card">
+      <div class="card-title">Journal Groq</div>
+      <div class="log-box" id="groqLogBox">En attente de configuration…</div>
+    </div>
+
+  </div><!-- /tab-dictee -->
+
+</div><!-- /wrapper -->
+
+<script>
+  // ═══════════════════════════════════════════════════
+  // SHARED STATE
+  // ═══════════════════════════════════════════════════
+  let listeMots       = [];
+  let groqListeMots   = [];
+  let maxCreditsKnown = null;
+  let stopRequested   = false;
+  let groqStopReq     = false;
+  let groqResultData  = null;   // référence globale pour téléchargement depuis stopDictee
+  let groqModelsData  = {};     // { modelId: { rpm, tpm, rpd } }
+  let groqActiveRpm   = 20;     // limite RPM du modèle sélectionné (défaut sécurisé)
+
+  // ETA tracking
+  let etaStartTime    = 0;
+  let etaProcessed    = 0;
+  let etaTotal        = 0;
+  let etaInterval     = null;
+
+  // Groq rate-limit tracking (dynamique selon le modèle chargé)
+  const GROQ_WINDOW_MS  = 60_000;
+  let   groqTimestamps  = []; // timestamps of recent requests
+  // Accès dynamique à la limite RPM active :
+  function getActiveRpm() { return groqActiveRpm; }
+
+  // ── Tab switching ─────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll('.tab-btn').forEach((b, i) => {
+      b.classList.toggle('active', (i === 0 && name === 'audio') || (i === 1 && name === 'dictee'));
+    });
+    document.getElementById('tab-audio').classList.toggle('active', name === 'audio');
+    document.getElementById('tab-dictee').classList.toggle('active', name === 'dictee');
+  }
+
+  // ── Logging ──────────────────────────────────────
+  function log(msg, type = '', boxId = 'logBox') {
+    const box  = document.getElementById(boxId);
+    const span = document.createElement('span');
+    span.className  = type ? `log-${type}` : '';
+    span.textContent = msg + '\n';
+    box.appendChild(span);
+    box.scrollTop = box.scrollHeight;
+  }
+  const glog = (msg, type = '') => log(msg, type, 'groqLogBox');
+
+  // ═══════════════════════════════════════════════════
+  // ELEVENLABS AUDIO
+  // ═══════════════════════════════════════════════════
+
+  async function fetchCredits(apiKey) {
+    const r = await fetch('https://api.elevenlabs.io/v1/user/subscription', {
+      headers: { 'xi-api-key': apiKey }
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+    return { used: d.character_count ?? 0, limit: d.character_limit ?? null };
+  }
+
+  function updateCreditUI(remaining, total) {
+    const val  = document.getElementById('creditValue');
+    const fill = document.getElementById('creditFill');
+    val.textContent = remaining.toLocaleString('fr-FR');
+    const pct = total ? Math.max(0, Math.min(100, (remaining / total) * 100)) : 0;
+    fill.style.width = pct + '%';
+    val.className  = 'credit-value';
+    fill.className = 'credit-fill';
+    if (remaining <= 10)        { val.classList.add('danger'); fill.classList.add('danger'); }
+    else if (remaining <= 500)  { val.classList.add('warn');   fill.classList.add('warn');   }
+  }
+
+  async function refreshCredits() {
+    const apiKey = document.getElementById('apiKey').value.trim();
+    if (!apiKey) { log('Entrez votre clé API pour actualiser les crédits.', 'warn'); return; }
+    try {
+      const { used, limit } = await fetchCredits(apiKey);
+      const remaining = limit !== null ? limit - used : used;
+      if (maxCreditsKnown === null && limit !== null) maxCreditsKnown = limit;
+      updateCreditUI(remaining, maxCreditsKnown);
+      log(`Crédits actualisés : ${remaining.toLocaleString('fr-FR')} restants.`, 'ok');
+    } catch(e) {
+      log(`Impossible d'actualiser les crédits : ${e.message}`, 'err');
+    }
+  }
+
+  async function chargerVoix() {
+    const apiKey = document.getElementById('apiKey').value.trim();
+    if (!apiKey) { log('Veuillez entrer votre clé API.', 'warn'); return; }
+    log('Connexion à ElevenLabs…', 'info');
+    try {
+      const { used, limit } = await fetchCredits(apiKey);
+      const remaining = limit !== null ? limit - used : used;
+      maxCreditsKnown = limit;
+      updateCreditUI(remaining, maxCreditsKnown);
+    } catch(e) { /* non-blocking */ }
+    try {
+      const r = await fetch('https://api.elevenlabs.io/v1/voices', {
+        headers: { 'xi-api-key': apiKey }
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      const sel = document.getElementById('voiceSelect');
+      sel.innerHTML = '';
+      data.voices.forEach(v => {
+        const o = document.createElement('option');
+        o.value = v.voice_id;
+        o.dataset.preview = v.preview_url || '';
+        const acc = v.labels?.accent ? ` · ${v.labels.accent}` : '';
+        o.text = `${v.name}${acc} (${v.category})`;
+        sel.appendChild(o);
+      });
+      sel.disabled = false;
+      document.getElementById('previewBtn').disabled = false;
+      document.getElementById('actionBtn').disabled = false;
+      log(`${data.voices.length} voix chargées.`, 'ok');
+    } catch(e) {
+      log(`Erreur chargement voix : ${e.message}`, 'err');
+    }
+  }
+
+  function ecouterExtrait() {
+    const sel = document.getElementById('voiceSelect');
+    const opt = sel.options[sel.selectedIndex];
+    const url = opt?.dataset.preview;
+    if (!url) { log('Aucun extrait disponible pour cette voix.', 'warn'); return; }
+    log(`▶ Extrait : ${opt.text}`, 'info');
+    new Audio(url).play().catch(() => log('Erreur de lecture audio.', 'err'));
+  }
+
+  document.getElementById('jsonFile').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = evt => {
+      try {
+        listeMots = JSON.parse(evt.target.result);
+        const statusEl = document.getElementById('fileStatus');
+        statusEl.textContent = `✓ ${listeMots.length} mots chargés — ${file.name}`;
+        statusEl.className = 'file-status loaded';
+        log(`Fichier chargé : ${listeMots.length} mots (${file.name})`, 'ok');
+      } catch(err) {
+        log(`Erreur JSON : ${err.message}`, 'err');
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  function stopGeneration() {
+    stopRequested = true;
+    log('⏹ Arrêt demandé — sauvegarde du ZIP en cours…', 'warn');
+  }
+
+  async function lancerGeneration() {
+    const apiKey   = document.getElementById('apiKey').value.trim();
+    const voiceId  = document.getElementById('voiceSelect').value;
+    const startId  = parseInt(document.getElementById('startId').value) || 1;
+    const maxWords = parseInt(document.getElementById('maxWords').value) || 50;
+
+    if (!listeMots.length) { log('Veuillez charger vocabulary.json.', 'warn'); return; }
+
+    let startIndex = listeMots.findIndex(item => item.id === startId);
+    if (startIndex === -1) startIndex = Math.max(0, startId - 1);
+
+    const endIndex = Math.min(listeMots.length, startIndex + maxWords);
+    const total    = endIndex - startIndex;
+
+    if (total <= 0 || startIndex >= listeMots.length) {
+      log("L'ID de départ est hors limites.", 'err'); return;
+    }
+
+    stopRequested = false;
+    document.getElementById('actionBtn').disabled = true;
+    document.getElementById('stopBtn').style.display = 'flex';
+    const pb = document.getElementById('progressBlock');
+    pb.classList.add('active');
+
+    log(`--- Génération : ID ${startId} → ID ${listeMots[endIndex-1].id} (${total} mots) ---`, 'info');
+
+    const zip = new JSZip();
+    let generated = 0;
+
+    for (let i = startIndex; i < endIndex; i++) {
+      if (stopRequested) break;
+      const item  = listeMots[i];
+      const mot   = item.word;
+      const ordre = i - startIndex + 1;
+
+      const pct = Math.round(((ordre - 1) / total) * 100);
+      document.getElementById('progressFill').style.width = pct + '%';
+      document.getElementById('progressCounter').textContent = `${ordre - 1} / ${total}`;
+      document.getElementById('progressCurrent').textContent = `En cours : "${mot}" (ID ${item.id})`;
+      log(`[${ordre}/${total}] "${mot}" (ID ${item.id})…`);
+
+      try {
+        try {
+          const { used, limit } = await fetchCredits(apiKey);
+          const remaining = limit !== null ? limit - used : null;
+          if (remaining !== null) {
+            updateCreditUI(remaining, maxCreditsKnown ?? limit);
+            if (remaining <= 10) {
+              log(`⚠️ Crédits critiques (${remaining}) — arrêt automatique.`, 'warn');
+              stopRequested = true;
+              break;
+            }
+          }
+        } catch(_) {}
+
+        const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+          method: 'POST',
+          headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: mot,
+            model_id: 'eleven_multilingual_v2',
+            voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+          })
+        });
+
+        if (r.status === 429) {
+          log('⚠️ Rate limit — pause 10 s…', 'warn');
+          await new Promise(res => setTimeout(res, 10000));
+          i--; continue;
+        }
+        if (!r.ok) {
+          const txt = await r.text();
+          if (txt.includes('insufficient_credits')) {
+            log('❌ Crédits insuffisants — arrêt.', 'err');
+            break;
+          }
+          throw new Error(`API ${r.status}`);
+        }
+
+        const blob = await r.blob();
+        const safe = mot.replace(/[^a-zA-Z0-9\-_]/g, '_');
+        zip.file(`${safe}.mp3`, blob);
+        generated++;
+        log(`  ✓ Ajouté au ZIP`, 'ok');
+        await new Promise(res => setTimeout(res, 400));
+
+      } catch(e) {
+        log(`❌ Erreur "${mot}" : ${e.message}`, 'err');
+        break;
+      }
+    }
+
+    document.getElementById('progressFill').style.width = '100%';
+    document.getElementById('progressCounter').textContent = `${generated} / ${total}`;
+    document.getElementById('progressCurrent').textContent = `Génération terminée — ${generated} fichiers.`;
+    log(`\nCompression du ZIP (${generated} fichiers)…`, 'info');
+
+    try {
+      const content = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(content);
+      const a   = document.createElement('a');
+      const lastId = listeMots[Math.min(startIndex + generated - 1, listeMots.length - 1)]?.id ?? startId;
+      a.href     = url;
+      a.download = `vocabulaire_audio_${startId}_a_${lastId}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      log('🎉 ZIP téléchargé avec succès !', 'ok');
+    } catch(e) {
+      log(`Erreur ZIP : ${e.message}`, 'err');
+    }
+
+    document.getElementById('actionBtn').disabled = false;
+    document.getElementById('stopBtn').style.display = 'none';
+  }
+
+  // ═══════════════════════════════════════════════════
+  // GROQ — DICTATION GENERATOR
+  // ═══════════════════════════════════════════════════
+
+  // ═══════════════════════════════════════════════════
+  // GROQ — MODEL LOADER
+  // ═══════════════════════════════════════════════════
+
+  // Known rate limits per model (fallback when API doesn't return them)
+  const GROQ_KNOWN_LIMITS = {
+    'llama-3.3-70b-versatile':  { rpm: 30,  tpm: 6000,   rpd: 1000 },
+    'llama-3.1-8b-instant':     { rpm: 30,  tpm: 20000,  rpd: 14400 },
+    'mixtral-8x7b-32768':       { rpm: 30,  tpm: 5000,   rpd: 14400 },
+    'llama3-70b-8192':          { rpm: 30,  tpm: 6000,   rpd: 14400 },
+    'llama3-8b-8192':           { rpm: 30,  tpm: 20000,  rpd: 14400 },
+    'gemma2-9b-it':             { rpm: 30,  tpm: 15000,  rpd: 14400 },
+    'openai/gpt-oss-120b':      { rpm: 20,  tpm: 8000,   rpd: 1000  },
+    'openai/gpt-oss-20b':       { rpm: 20,  tpm: 8000,   rpd: 1000  },
+  };
+
+  async function chargerModelsGroq() {
+    const apiKey = document.getElementById('groqApiKey').value.trim();
+    if (!apiKey) { glog('Entrez votre clé API Groq d\'abord.', 'warn'); return; }
+
+    const btn = document.getElementById('groqLoadModelsBtn');
+    const statusEl = document.getElementById('groqModelsStatus');
+    btn.disabled = true;
+    btn.textContent = '⏳ Chargement…';
+    statusEl.textContent = 'Connexion à l\'API Groq…';
+    statusEl.className = 'file-status';
+
+    try {
+      const r = await fetch('https://api.groq.com/openai/v1/models', {
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }
+      });
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error(`HTTP ${r.status}: ${t.slice(0, 120)}`);
+      }
+      const data = await r.json();
+      const models = (data.data || []).filter(m => m.active !== false);
+
+      // Build table
+      groqModelsData = {};
+      const tbody = document.getElementById('modelsTableBody');
+      tbody.innerHTML = '';
+      const sel = document.getElementById('groqModel');
+      const currentVal = sel.value;
+      sel.innerHTML = '';
+
+      // Sort: known limits first, then alpha
+      models.sort((a, b) => {
+        const aK = GROQ_KNOWN_LIMITS[a.id] ? 0 : 1;
+        const bK = GROQ_KNOWN_LIMITS[b.id] ? 0 : 1;
+        return aK - bK || a.id.localeCompare(b.id);
+      });
+
+      models.forEach(m => {
+        const limits = GROQ_KNOWN_LIMITS[m.id] || { rpm: 20, tpm: null, rpd: null };
+        groqModelsData[m.id] = limits;
+
+        // Table row
+        const tr = document.createElement('tr');
+        tr.style.cssText = 'border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s';
+        tr.onmouseover = () => tr.style.background = 'var(--surface2)';
+        tr.onmouseout  = () => tr.style.background = '';
+        tr.onclick = () => {
+          sel.value = m.id;
+          onModelChange();
+          // Highlight selected row
+          tbody.querySelectorAll('tr').forEach(r => r.style.outline = '');
+          tr.style.outline = '1px solid var(--purple)';
+        };
+
+        const rpmStr = limits.rpm   ? `<span style="color:var(--green)">${limits.rpm}</span>`  : '<span style="color:var(--muted)">?</span>';
+        const tpmStr = limits.tpm   ? `<span style="color:var(--accent)">${(limits.tpm/1000).toFixed(0)}K</span>` : '<span style="color:var(--muted)">?</span>';
+        const rpdStr = limits.rpd   ? `<span style="color:var(--label)">${limits.rpd >= 1000 ? (limits.rpd/1000).toFixed(0)+'K' : limits.rpd}</span>` : '<span style="color:var(--muted)">?</span>';
+
+        tr.innerHTML = `
+          <td style="padding:7px 8px;color:var(--text);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${m.id}">${m.id}</td>
+          <td style="padding:7px 8px;text-align:right">${rpmStr}</td>
+          <td style="padding:7px 8px;text-align:right">${tpmStr}</td>
+          <td style="padding:7px 8px;text-align:right">${rpdStr}</td>
+          <td style="padding:7px 8px;text-align:center"><span style="color:var(--purple);font-size:16px">○</span></td>
+        `;
+        tbody.appendChild(tr);
+
+        // Select option
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = m.id;
+        sel.appendChild(opt);
+      });
+
+      // Restore selection or pick openai/gpt-oss-120b if available
+      if ([...sel.options].some(o => o.value === 'openai/gpt-oss-120b')) sel.value = 'openai/gpt-oss-120b';
+      else if ([...sel.options].some(o => o.value === currentVal)) sel.value = currentVal;
+
+      onModelChange();
+
+      document.getElementById('groqModelsTable').style.display = 'block';
+      statusEl.textContent = `✓ ${models.length} modèles chargés.`;
+      statusEl.className = 'file-status loaded';
+      glog(`${models.length} modèles Groq chargés.`, 'ok');
+
+    } catch(e) {
+      statusEl.textContent = `Erreur : ${e.message}`;
+      statusEl.className = 'file-status';
+      glog(`Erreur chargement modèles : ${e.message}`, 'err');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '⟳ Charger les modèles';
+    }
+  }
+
+  function onModelChange() {
+    const modelId = document.getElementById('groqModel').value;
+    const limits  = groqModelsData[modelId] || GROQ_KNOWN_LIMITS[modelId] || { rpm: 20, tpm: null, rpd: null };
+    groqActiveRpm = Math.max(1, limits.rpm - 2); // marge de sécurité de 2 req
+
+    const infoEl = document.getElementById('groqModelLimitInfo');
+    const parts = [`${groqActiveRpm} req/min (limite réelle : ${limits.rpm})`];
+    if (limits.tpm) parts.push(`${(limits.tpm/1000).toFixed(0)}K tok/min`);
+    if (limits.rpd) parts.push(`${limits.rpd >= 1000 ? (limits.rpd/1000).toFixed(0)+'K' : limits.rpd} req/jour`);
+    infoEl.textContent = '⚡ ' + parts.join(' · ');
+    infoEl.className = 'file-status loaded';
+
+    document.getElementById('groqRateLimit').textContent = groqActiveRpm + '/min';
+
+    // Highlight selected row in table
+    const tbody = document.getElementById('modelsTableBody');
+    if (tbody) {
+      [...tbody.querySelectorAll('tr')].forEach(tr => {
+        const cell = tr.querySelector('td');
+        const isSelected = cell && cell.getAttribute('title') === modelId;
+        tr.style.outline = isSelected ? '1px solid var(--purple)' : '';
+        if (tr.querySelector('span[style*="purple"]')) {
+          tr.querySelector('td:last-child').innerHTML = isSelected
+            ? '<span style="color:var(--purple);font-size:16px">●</span>'
+            : '<span style="color:var(--purple);font-size:16px">○</span>';
+        }
+      });
+    }
+
+    // Update ETA if generation is running
+    updateETADisplay();
+  }
+
+  // ── ETA ──────────────────────────────────────────
+  function formatDuration(ms) {
+    if (ms <= 0) return '< 1 s';
+    const s = Math.round(ms / 1000);
+    if (s < 60)  return `${s} s`;
+    const m = Math.floor(s / 60), rs = s % 60;
+    if (m < 60)  return `${m} min ${rs} s`;
+    const h = Math.floor(m / 60), rm = m % 60;
+    return `${h} h ${rm} min`;
+  }
+
+  function updateETADisplay() {
+    if (etaStartTime === 0 || etaTotal === 0) return;
+    const done    = etaProcessed;
+    const remain  = etaTotal - done;
+    if (done === 0) {
+      document.getElementById('groqEtaValue').textContent = '—';
+      document.getElementById('groqEtaEnd').textContent   = '—';
+      document.getElementById('groqEtaSpeed').textContent = '—';
+      return;
+    }
+    const elapsed = Date.now() - etaStartTime;
+    const msPerWord  = elapsed / done;
+    const etaMs      = msPerWord * remain;
+    const endDate    = new Date(Date.now() + etaMs);
+    const endStr     = endDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const wpm        = (done / (elapsed / 60000)).toFixed(1);
+
+    document.getElementById('groqEtaValue').textContent = formatDuration(etaMs);
+    document.getElementById('groqEtaEnd').textContent   = `~ ${endStr}`;
+    document.getElementById('groqEtaSpeed').textContent = `${wpm} mots/min`;
+  }
+
+  function startETA(total) {
+    etaStartTime = Date.now();
+    etaProcessed = 0;
+    etaTotal     = total;
+    document.getElementById('groqEtaPanel').style.display = 'block';
+    clearInterval(etaInterval);
+    etaInterval = setInterval(updateETADisplay, 2000);
+  }
+
+  function stopETA() {
+    clearInterval(etaInterval);
+    etaInterval  = null;
+    etaStartTime = 0;
+    document.getElementById('groqEtaPanel').style.display = 'none';
+  }
+
+  // ── Bind model select change ──────────────────────
+  document.getElementById('groqModel').addEventListener('change', onModelChange);
+
+  // ── File loader ───────────────────────────────────
+  document.getElementById('groqJsonFile').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = evt => {
+      try {
+        groqListeMots = JSON.parse(evt.target.result);
+        const statusEl = document.getElementById('groqFileStatus');
+        statusEl.textContent = `✓ ${groqListeMots.length} mots chargés — ${file.name}`;
+        statusEl.className = 'file-status loaded';
+        document.getElementById('groqActionBtn').disabled = false;
+        glog(`Fichier chargé : ${groqListeMots.length} mots (${file.name})`, 'ok');
+      } catch(err) {
+        glog(`Erreur JSON : ${err.message}`, 'err');
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  function stopDictee() {
+    groqStopReq = true;
+    glog('⏹ Arrêt demandé — téléchargement du JSON en cours…', 'warn');
+    stopETA();
+    if (groqResultData && groqResultData.slice) {
+      const doneSlice = groqResultData.slice.filter(r => r.dictationSentenceEN);
+      if (doneSlice.length > 0) {
+        const lastId = doneSlice[doneSlice.length - 1].id;
+        triggerGroqDownload(doneSlice, groqResultData.startId, lastId);
+      } else {
+        glog('Aucune donnée générée à télécharger pour l\'instant.', 'warn');
+      }
+    }
+  }
+
+  // ── Rate limiter : attendre si on a déjà N req dans la dernière minute ──
+  async function groqRateWait() {
+    const rpm = getActiveRpm();
+    const now = Date.now();
+    // Purge old timestamps outside the 60s window
+    groqTimestamps = groqTimestamps.filter(t => now - t < GROQ_WINDOW_MS);
+
+    if (groqTimestamps.length >= rpm) {
+      // Wait until the oldest timestamp exits the window
+      const oldest    = groqTimestamps[0];
+      const waitMs    = GROQ_WINDOW_MS - (now - oldest) + 200; // +200ms safety margin
+      glog(`⏳ Limite ${rpm} req/min atteinte — pause ${Math.ceil(waitMs/1000)} s…`, 'warn');
+      await new Promise(res => setTimeout(res, waitMs));
+      // Recurse to purge and recheck
+      return groqRateWait();
+    }
+  }
+
+  function updateGroqRateUI() {
+    const rpm = getActiveRpm();
+    const now = Date.now();
+    groqTimestamps = groqTimestamps.filter(t => now - t < GROQ_WINDOW_MS);
+    const count = groqTimestamps.length;
+    document.getElementById('groqReqCount').textContent = count;
+    document.getElementById('groqRateLimit').textContent = rpm + '/min';
+    const fill = document.getElementById('groqRateFill');
+    const pct  = Math.min(100, (count / rpm) * 100);
+    fill.style.width = pct + '%';
+    fill.className = 'rate-fill' + (pct >= 100 ? ' danger' : pct >= 70 ? ' warn' : '');
+  }
+
+  // ── Single Groq API call ──────────────────────────
+  // Modèles supportant response_format: json_object (liste blanche)
+  const JSON_FORMAT_MODELS = new Set([
+    'llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'llama3-70b-8192',
+    'llama3-8b-8192', 'mixtral-8x7b-32768', 'gemma2-9b-it'
+  ]);
+
+  async function callGroq(apiKey, model, prompt, retryCount = 0) {
+    await groqRateWait();
+
+    const body = {
+      model: model,
+      max_tokens: 500,
+      temperature: 0.9,
+      messages: [{ role: 'user', content: prompt }]
+    };
+    // N'ajouter response_format que pour les modèles qui le supportent
+    if (JSON_FORMAT_MODELS.has(model)) {
+      body.response_format = { type: 'json_object' };
+    }
+
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    groqTimestamps.push(Date.now());
+    updateGroqRateUI();
+
+    if (r.status === 429) {
+      // Backoff exponentiel : 30s, 60s, 120s…
+      const waitSec = 30 * Math.pow(2, retryCount);
+      glog(`⚠️ 429 Groq rate limit — pause ${waitSec} s (tentative ${retryCount + 1})…`, 'warn');
+      await new Promise(res => setTimeout(res, waitSec * 1000));
+      return callGroq(apiKey, model, prompt, retryCount + 1); // retry
+    }
+
+    if (!r.ok) {
+      const txt = await r.text();
+      throw new Error(`Groq API ${r.status}: ${txt.slice(0, 200)}`);
+    }
+
+    const data = await r.json();
+    return data.choices[0]?.message?.content ?? '';
+  }
+
+  // ── Décodage des entités HTML dans les réponses ──
+  function decodeHtmlEntities(str) {
+    if (typeof str !== 'string') return str;
+    return str
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code)));
+  }
+
+  // ── Nettoyage de la réponse brute avant JSON.parse ──
+  function cleanGroqResponse(raw) {
+    let txt = (raw || '').trim();
+    // Supprime les balises ```json et ```
+    txt = txt.replace(/```json/gi, '').replace(/```/g, '');
+    // Supprime le texte parasite avant le premier '{' et après le dernier '}'
+    const firstBrace = txt.indexOf('{');
+    const lastBrace  = txt.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      txt = txt.slice(firstBrace, lastBrace + 1);
+    }
+    return txt.trim();
+  }
+
+  // ── Build prompt for one word ─────────────────────
+  function buildDictationPrompt(item) {
+    const { word, level, translation } = item;
+
+    const levelDescriptions = {
+      A1: 'A1 — very short sentence (5–8 words), simple present only, basic everyday vocabulary, subject-verb-object structure',
+      A2: 'A2 — short everyday sentence (7–12 words), familiar situations, simple past/present/near future, basic connectors (and, but, because)',
+      B1: 'B1 — realistic situation (11–18 words), mix of tenses (present, past, future, present perfect), simple subordinate clauses',
+      B2: 'B2 — developed sentence (15–22 words), moderate nuance, varied subordinates, richer logical connectors, common idioms',
+      C1: 'C1 — rich natural English (17–26 words), varied structures (inversions, relative clauses, complex conditionals), nuanced register',
+      C2: 'C2 — near-native sophistication, complex sentence, idioms, stylistic turns, fine tonal and register nuances'
+    };
+
+    const levelDesc = levelDescriptions[level] || levelDescriptions.B1;
+    const allowedThemes = 'family, home, friends, school, hobbies, travel, food, shopping, sport, animals, weather, everyday health, transport, holidays, daily conversations';
+    const forbiddenThemes = 'business, finance, banking, marketing, sales, HR, professional IT, programming, cloud, cybersecurity, engineering, scientific research, academic jargon, legal jargon, specialized medical jargon';
+
+    return `You are an expert bilingual (English / French) linguist building a CEFR dictation corpus. Your task has two parts.
+
+━━━ PART 1 — ENGLISH DICTATION SENTENCE ━━━
+Target word: "${word}"
+CEFR level: ${level} — ${levelDesc}
+Word meaning hint (do NOT copy verbatim): ${translation}
+
+Rules:
+• The sentence MUST contain the exact word "${word}" (natural grammatical inflection is acceptable).
+• Craft the sentence so it carries at least one plausible ambiguity — ideally from one of these sources:
+    - POLYSEMY: the word "${word}" has multiple French translations with different meanings; let the English sentence be compatible with more than one.
+    - STRUCTURAL AMBIGUITY: the word order or grammar allows two different syntactic readings.
+    - CONTEXT / TONE AMBIGUITY: without more context, the sentence could reflect humour, irony, literalness or different intentions.
+  If no natural ambiguity exists for this word, still write a rich, natural sentence and produce 5 genuinely different French phrasings in Part 2.
+• Strictly respect CEFR level ${level}: ${levelDesc}.
+• Use ONLY everyday topics: ${allowedThemes}
+• NEVER use: ${forbiddenThemes}
+• Vary subject (not always "I"), tense, and sentence structure. Avoid openers: I like…, I have…, This is…, There is…, I saw…
+
+━━━ PART 2 — FRENCH TRANSLATION ━━━
+Provide ONE natural and accurate French translation of the English sentence generated in Part 1.
+
+CRITICAL RULES FOR PART 2:
+• The translation MUST contain ONLY the plain French sentence.
+• NEVER include any notes, explanations, justifications, metadata, or parentheses (e.g., do NOT write things like "(note: ...)", "(colloquial)", or "Interpretation: ...").
+• Return ONLY the raw plain text string.
+• The translation must be in IMPECCABLE, NATIVE-LEVEL French — correct grammar, natural phrasing, no awkward literal calques from English.
+• NEVER produce HTML entities (&amp; &#39; etc.) — use plain UTF-8 characters (apostrophes, accents, etc.).
+
+━━━ OUTPUT FORMAT ━━━
+Return ONLY this raw JSON object — no markdown, no backticks, no explanation:
+{
+  "dictationSentenceEN": "your English sentence here",
+  "dictationSentenceFR": "traduction française de la phrase de dictée"
+}`;
+  }
+
+  // ── Main dictation generation loop ───────────────
+  async function lancerDictee() {
+    const apiKey   = document.getElementById('groqApiKey').value.trim();
+    const model    = document.getElementById('groqModel').value;
+    const startId  = parseInt(document.getElementById('groqStartId').value) || 1;
+    const maxWords = parseInt(document.getElementById('groqMaxWords').value) || 100;
+
+    if (!apiKey)            { glog('Veuillez entrer votre clé API Groq.', 'warn'); return; }
+    if (!groqListeMots.length) { glog('Veuillez charger vocabulary.json.', 'warn'); return; }
+
+    let startIndex = groqListeMots.findIndex(item => item.id === startId);
+    if (startIndex === -1) startIndex = Math.max(0, startId - 1);
+
+    const endIndex = Math.min(groqListeMots.length, startIndex + maxWords);
+    const total    = endIndex - startIndex;
+
+    if (total <= 0 || startIndex >= groqListeMots.length) {
+      glog("L'ID de départ est hors limites.", 'err'); return;
+    }
+
+    groqStopReq = false;
+    document.getElementById('groqActionBtn').disabled = true;
+    document.getElementById('groqStopBtn').style.display = 'flex';
+    document.getElementById('groqDownloadLink').classList.remove('visible');
+    document.getElementById('groqProgressBlock').classList.add('active');
+
+    glog(`--- Dictée Groq : ID ${startId} → ID ${groqListeMots[endIndex-1].id} (${total} mots) | modèle : ${model} ---`, 'purple');
+    glog(`Limite : ${groqActiveRpm} req/min (avec marge de sécurité) — gestion automatique.`, 'info');
+
+    startETA(total);
+
+    // Work on a copy — SEULEMENT la tranche à traiter (startIndex → endIndex)
+    const sliceData  = groqListeMots.slice(startIndex, endIndex).map(item => ({ ...item }));
+    groqResultData   = { slice: sliceData, startId, startIndex, endIndex }; // expose globally
+    let   processed  = 0;
+    let   errors     = 0;
+    let   lastDoneId = startId;
+
+    for (let i = 0; i < sliceData.length; i++) {
+      if (groqStopReq) break;
+
+      const item  = sliceData[i];
+      const mot   = item.word;
+      const ordre = i + 1;
+
+      const pct = Math.round(((ordre - 1) / total) * 100);
+      document.getElementById('groqProgressFill').style.width = pct + '%';
+      document.getElementById('groqProgressCounter').textContent = `${ordre - 1} / ${total}`;
+      document.getElementById('groqProgressCurrent').textContent = `En cours : "${mot}" (ID ${item.id}, ${item.level})`;
+
+      glog(`[${ordre}/${total}] "${mot}" (ID ${item.id}, ${item.level})…`);
+
+      try {
+        const prompt = buildDictationPrompt(item);
+
+        let parsed   = null;
+        let lastErr  = '';
+        const MAX_ATTEMPTS = 3;
+
+        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+          let rawResp;
+          try {
+            rawResp = await callGroq(apiKey, model, prompt);
+          } catch (callErr) {
+            lastErr = callErr.message;
+            glog(`  ⚠️ Tentative ${attempt}/${MAX_ATTEMPTS} — erreur appel API pour "${mot}" : ${lastErr}`, 'warn');
+            continue;
+          }
+
+          // Nettoyage de la réponse avant JSON.parse
+          const clean = cleanGroqResponse(rawResp);
+
+          let candidate;
+          try {
+            candidate = JSON.parse(clean);
+          } catch (parseErr) {
+            lastErr = `JSON invalide (${parseErr.message})`;
+            glog(`  ⚠️ Tentative ${attempt}/${MAX_ATTEMPTS} — ${lastErr} pour "${mot}". Réponse brute : ${rawResp.slice(0,120)}`, 'warn');
+            continue;
+          }
+
+          // Validation stricte
+          const sentEN = candidate.dictationSentenceEN;
+          const sentFR = candidate.dictationSentenceFR;
+
+          if (typeof sentEN !== 'string' || !sentEN.trim()) {
+            lastErr = 'dictationSentenceEN manquant ou invalide';
+            glog(`  ⚠️ Tentative ${attempt}/${MAX_ATTEMPTS} — ${lastErr} pour "${mot}".`, 'warn');
+            continue;
+          }
+          if (typeof sentFR !== 'string' || !sentFR.trim()) {
+            lastErr = 'dictationSentenceFR manquant ou invalide';
+            glog(`  ⚠️ Tentative ${attempt}/${MAX_ATTEMPTS} — ${lastErr} pour "${mot}".`, 'warn');
+            continue;
+          }
+
+          // Tout est valide
+          parsed = { dictationSentenceEN: sentEN, dictationSentenceFR: sentFR };
+          break;
+        }
+
+        if (!parsed) {
+          glog(`  ❌ Échec après ${MAX_ATTEMPTS} tentatives pour "${mot}" — skipping. (${lastErr})`, 'err');
+          errors++;
+          continue;
+        }
+
+        const sentEN = parsed.dictationSentenceEN;
+        const sentFR = parsed.dictationSentenceFR;
+
+        // Inject into slice copy preserving key order
+        const ordered = {
+          id:                  item.id,
+          word:                item.word,
+          phonetic:            item.phonetic,
+          level:               item.level,
+          translation:         item.translation,
+          exampleEnglish:      item.exampleEnglish,
+          exampleFrench:       item.exampleFrench,
+          dictationSentenceEN: decodeHtmlEntities(sentEN),
+          dictationSentenceFR: decodeHtmlEntities(sentFR)
+        };
+        Object.assign(sliceData[i], ordered);
+        lastDoneId = item.id;
+
+        processed++;
+        etaProcessed = processed;
+        updateETADisplay();
+        glog(`  ✓ "${mot}" → ${sentEN.slice(0, 60)}${sentEN.length > 60 ? '…' : ''}`, 'ok');
+
+      } catch(e) {
+        glog(`❌ Erreur "${mot}" : ${e.message}`, 'err');
+        errors++;
+        // On hard error, wait a bit before continuing
+        await new Promise(res => setTimeout(res, 3000));
+      }
+    }
+
+    // Final progress
+    document.getElementById('groqProgressFill').style.width = '100%';
+    document.getElementById('groqProgressCounter').textContent = `${processed} / ${total}`;
+    document.getElementById('groqProgressCurrent').textContent = `Terminé — ${processed} phrases générées, ${errors} erreurs.`;
+
+    glog(`\n✅ Génération terminée : ${processed} réussies, ${errors} erreurs.`, 'ok');
+    glog('Préparation du téléchargement JSON…', 'info');
+    stopETA();
+
+    // Offer download — seulement la tranche traitée
+    const doneSlice = sliceData.filter(r => r.dictationSentenceEN);
+    triggerGroqDownload(doneSlice, startId, lastDoneId);
+
+    document.getElementById('groqActionBtn').disabled = false;
+    document.getElementById('groqStopBtn').style.display = 'none';
+  }
+
+  function triggerGroqDownload(data, fromId, toId) {
+    const jsonStr  = JSON.stringify(data, null, 2);
+    const blob     = new Blob([jsonStr], { type: 'application/json' });
+    const url      = URL.createObjectURL(blob);
+    const filename = `vocabulary_dictation_${fromId}_a_${toId}.json`;
+
+    const link = document.getElementById('groqDownloadLink');
+    link.href      = url;
+    link.download  = filename;
+    link.textContent = `⬇️ Télécharger ${filename}`;
+    link.classList.add('visible');
+
+    // Also auto-trigger download
+    const a = document.createElement('a');
+    a.href     = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    glog(`🎉 JSON téléchargé : ${filename}`, 'ok');
+  }
+</script>
+</body>
+</html>
