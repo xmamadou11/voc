@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenRouter 10825 Ultra V2</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0d0f14;
+    --surface:   #141820;
+    --surface2:  #1c2230;
+    --border:    #252d3d;
+    --accent:    #4f8ef7;
+    --accent-glow: rgba(79,142,247,0.18);
+    --green:     #22d07a;
+    --green-dim: rgba(34,208,122,0.12);
+    --amber:     #f0a500;
+    --amber-dim: rgba(240,165,0,0.12);
+    --red:       #f04b4b;
+    --red-dim:   rgba(240,75,75,0.12);
+    --purple:    #a78bfa;
+    --purple-dim: rgba(167,139,250,0.12);
+    --text:      #e8ecf4;
+    --muted:     #6b7897;
+    --label:     #9aa3bd;
+    --mono:      'JetBrains Mono', monospace;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 40px 20px 60px;
+  }
+
+  /* ── Header ── */
+  .header { text-align: center; margin-bottom: 28px; }
+  .header .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-glow);
+    border: 1px solid rgba(79,142,247,.25);
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 14px;
+  }
+  .header h1 { font-size: 28px; font-weight: 700; letter-spacing: -.5px; color: #fff; }
+  .header p { margin-top: 6px; font-size: 14px; color: var(--muted); }
+
+  /* ── Layout ── */
+  .wrapper { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+  /* ── Rate / requests-remaining panel ── */
+  .rate-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 22px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .rate-item { display: flex; flex-direction: column; align-items: center; }
+  .rate-label {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+  .rate-value { font-family: var(--mono); font-size: 22px; font-weight: 600; color: var(--purple); }
+  .rate-track { flex: 1; background: var(--surface2); border-radius: 6px; height: 8px; overflow: hidden; }
+  .rate-fill { height: 100%; background: var(--purple); border-radius: 6px; transition: width .4s ease; width: 0%; }
+  .rate-fill.warn   { background: var(--amber); }
+  .rate-fill.danger { background: var(--red); }
+
+  /* ── Card ── */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px; }
+  .card-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* ── Form elements ── */
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--label);
+    margin-bottom: 6px;
+  }
+  input[type="text"],
+  input[type="password"],
+  input[type="number"],
+  select,
+  input[type="file"] {
+    width: 100%;
+    padding: 10px 13px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+  input[type="file"] { cursor: pointer; }
+  .row { display: flex; gap: 12px; }
+  .row .field { flex: 1; }
+
+  /* ── Buttons ── */
+  .btn {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .2s, transform .1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn:active { transform: scale(.98); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .btn-groq { background: var(--purple-dim); color: var(--purple); border: 1px solid rgba(167,139,250,.3); margin-top: 4px; }
+  .btn-groq:hover:not(:disabled) { background: rgba(167,139,250,.22); }
+  .btn-stop { background: var(--red-dim); color: var(--red); border: 1px solid rgba(240,75,75,.25); display: none; margin-top: 8px; }
+  .btn-stop:hover { background: rgba(240,75,75,.22); }
+
+  /* ── ETA panel ── */
+  .eta-panel {
+    display: none;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 12px;
+  }
+  .eta-panel.active { display: block; }
+  .eta-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .eta-label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 2px; }
+  .eta-value { font-family: var(--mono); font-size: 22px; font-weight: 600; color: var(--amber); }
+  .eta-end   { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--label); }
+  .eta-speed { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--purple); }
+
+  /* ── Progress ── */
+  .progress-block { display: none; flex-direction: column; gap: 10px; margin: 14px 0 10px; }
+  .progress-block.active { display: flex; }
+  .progress-header { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+  .progress-title { color: var(--label); font-weight: 500; }
+  .progress-counter { font-family: var(--mono); font-size: 12px; color: var(--purple); }
+  .progress-track { background: var(--surface2); border-radius: 8px; height: 10px; overflow: hidden; }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--purple), #c4b5fd);
+    border-radius: 8px;
+    width: 0%;
+    transition: width .4s ease;
+  }
+  .progress-current { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+
+  /* ── Log ── */
+  .log-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    max-height: 220px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--muted);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .log-box::-webkit-scrollbar { width: 4px; }
+  .log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .log-ok     { color: var(--green); }
+  .log-warn   { color: var(--amber); }
+  .log-err    { color: var(--red); }
+  .log-info   { color: var(--accent); }
+  .log-purple { color: var(--purple); }
+
+  /* ── File status ── */
+  .file-status { font-size: 12px; font-family: var(--mono); color: var(--muted); margin-top: 6px; }
+  .file-status.loaded { color: var(--green); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="badge">OpenRouter · GPT-OSS-120B</div>
+  <h1>10825 Mots — Ultra V2</h1>
+  <p>Génération de dictées via OpenRouter · Suivi en temps réel</p>
+</div>
+
+<div class="wrapper">
+
+  <!-- Requêtes restantes / rate monitor -->
+  <div class="rate-panel">
+    <div class="rate-item">
+      <div class="rate-label">Lots traités</div>
+      <div class="rate-value" id="reqDone">0</div>
+    </div>
+    <div class="rate-track">
+      <div class="rate-fill" id="reqFill"></div>
+    </div>
+    <div class="rate-item">
+      <div class="rate-label">Lots restants</div>
+      <div class="rate-value" id="reqRemaining" style="color:var(--muted)">—</div>
+    </div>
+  </div>
+
+  <!-- API + fichier -->
+  <div class="card">
+    <div class="card-title">Connexion & Fichier</div>
+
+    <div class="row" style="align-items:flex-end">
+      <div class="field" style="margin-bottom:0">
+        <label for="api">Clé OpenRouter</label>
+        <input id="api" type="password" placeholder="sk-or-…" autocomplete="off">
+      </div>
+      <button class="btn btn-secondary" id="loadModelsBtn" onclick="chargerModeles()" style="width:auto;white-space:nowrap;padding:10px 18px;flex-shrink:0">⟳ Charger les modèles gratuits</button>
+    </div>
+    <div id="modelsStatus" class="file-status" style="margin-top:8px">Entrez votre clé puis cliquez sur Charger les modèles.</div>
+
+    <div class="field" style="margin-top:14px">
+      <label for="modelSelect">Modèle (gratuit)</label>
+      <select id="modelSelect" disabled>
+        <option value="">— Chargez d'abord les modèles —</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="file">Fichier vocabulary.json</label>
+      <input id="file" type="file" accept=".json">
+      <div class="file-status" id="fileStatus">Aucun fichier chargé</div>
+    </div>
+  </div>
+
+  <!-- Paramètres -->
+  <div class="card">
+    <div class="card-title">Paramètres</div>
+
+    <div class="row">
+      <div class="field">
+        <label for="startId">ID début</label>
+        <input id="startId" type="number" value="1">
+      </div>
+      <div class="field">
+        <label for="endId">ID fin</label>
+        <input id="endId" type="number" value="10825">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="batch">Taille lot</label>
+        <input id="batch" type="number" value="8" min="1" max="15">
+      </div>
+      <div class="field">
+        <label for="parallel">Parallèle</label>
+        <input id="parallel" type="number" value="1" min="1">
+      </div>
+    </div>
+    <div class="file-status" style="margin-top:-6px;margin-bottom:14px">⚡ Limite gratuite : 20 req/min — gérée automatiquement. Laissez "Parallèle" à 1 pour rester en dessous.</div>
+
+    <!-- Daily quota panel -->
+    <div class="eta-panel active" style="margin-bottom:14px">
+      <div class="eta-row">
+        <div>
+          <div class="eta-label">Requêtes aujourd'hui</div>
+          <div class="eta-value" id="quotaUsed" style="color:var(--purple)">0 / 50</div>
+        </div>
+        <div style="flex:1;min-width:120px">
+          <div class="eta-label">Quota journalier</div>
+          <div class="progress-track" style="margin-top:6px">
+            <div class="progress-fill" id="quotaFill" style="background:linear-gradient(90deg, var(--green), var(--purple))"></div>
+          </div>
+        </div>
+        <div>
+          <div class="eta-label">Réinitialisation</div>
+          <div class="eta-end" id="quotaReset">—</div>
+        </div>
+      </div>
+      <div class="file-status" style="margin-top:8px;margin-bottom:0">
+        <label style="display:inline;font-size:12px;color:var(--label)">
+          <input type="checkbox" id="hasCreditsCheck" style="width:auto;display:inline;margin:0 4px 0 0;vertical-align:middle" onchange="onQuotaModeChange()">
+          J'ai déjà acheté 10$ de crédits (quota = 1000/jour)
+        </label>
+      </div>
+    </div>
+
+    <!-- ETA panel -->
+    <div class="eta-panel" id="etaPanel">
+      <div class="eta-row">
+        <div>
+          <div class="eta-label">Temps restant estimé</div>
+          <div class="eta-value" id="etaValue">—</div>
+        </div>
+        <div>
+          <div class="eta-label">Fin estimée</div>
+          <div class="eta-end" id="etaEnd">—</div>
+        </div>
+        <div>
+          <div class="eta-label">Vitesse</div>
+          <div class="eta-speed" id="etaSpeed">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-block" id="progressBlock">
+      <div class="progress-header">
+        <span class="progress-title">Progression</span>
+        <span class="progress-counter" id="progressCounter">0 / 0</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="progress-current" id="progressCurrent">En attente…</div>
+    </div>
+
+    <button class="btn btn-groq" id="actionBtn" onclick="run()">🚀 Lancer</button>
+    <button class="btn btn-secondary" onclick="resetProgress()" style="margin-top:8px">↺ Réinitialiser la sauvegarde</button>
+    <button class="btn btn-stop" id="stopBtn" onclick="stopRun()">⏹ Arrêter et télécharger</button>
+  </div>
+
+  <!-- Journal -->
+  <div class="card">
+    <div class="card-title">Journal</div>
+    <div class="log-box" id="logBox">En attente de configuration…</div>
+  </div>
+
+</div><!-- /wrapper -->
+
+<script>
+let SELECTED_MODEL = "openai/gpt-oss-120b:free";
+let results = [];
+let stopRequested = false;
+let alreadyDownloaded = false;
+
+// ── Rate limiter (20 req/min for free models) ────
+const RATE_WINDOW_MS = 60_000;
+const RATE_LIMIT_RPM = 20;
+let requestTimestamps = [];
+
+async function rateLimitWait() {
+  const now = Date.now();
+  requestTimestamps = requestTimestamps.filter(t => now - t < RATE_WINDOW_MS);
+  if (requestTimestamps.length >= RATE_LIMIT_RPM) {
+    const oldest = requestTimestamps[0];
+    const waitMs = RATE_WINDOW_MS - (now - oldest) + 200;
+    log(`⏳ Limite ${RATE_LIMIT_RPM} req/min atteinte — pause ${Math.ceil(waitMs / 1000)} s…`, 'warn');
+    await new Promise(res => setTimeout(res, waitMs));
+    return rateLimitWait();
+  }
+}
+
+// ── Daily quota tracker ───────────────────────────
+const QUOTA_KEY = 'openrouter_quota';
+
+function getQuotaLimit() {
+  return document.getElementById('hasCreditsCheck').checked ? 1000 : 50;
+}
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+}
+
+function loadQuota() {
+  let q;
+  try {
+    q = JSON.parse(localStorage.getItem(QUOTA_KEY) || 'null');
+  } catch { q = null; }
+  if (!q || q.date !== todayKey()) {
+    q = { date: todayKey(), count: 0 };
+    localStorage.setItem(QUOTA_KEY, JSON.stringify(q));
+  }
+  return q;
+}
+
+function incrementQuota() {
+  const q = loadQuota();
+  q.count++;
+  localStorage.setItem(QUOTA_KEY, JSON.stringify(q));
+  updateQuotaUI();
+}
+
+function updateQuotaUI() {
+  const q = loadQuota();
+  const limit = getQuotaLimit();
+  const remaining = Math.max(0, limit - q.count);
+  document.getElementById('quotaUsed').textContent = `${q.count} / ${limit}`;
+  const pct = Math.min(100, (q.count / limit) * 100);
+  const fill = document.getElementById('quotaFill');
+  fill.style.width = pct + '%';
+
+  // Next UTC midnight (OpenRouter resets daily quotas on a UTC day boundary)
+  const now = new Date();
+  const reset = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0));
+  const diffMs = reset - now;
+  const h = Math.floor(diffMs / 3600000);
+  const m = Math.floor((diffMs % 3600000) / 60000);
+  document.getElementById('quotaReset').textContent = `dans ${h} h ${m} min`;
+
+  if (remaining === 0) {
+    document.getElementById('quotaUsed').style.color = 'var(--red)';
+  } else if (remaining <= limit * 0.15) {
+    document.getElementById('quotaUsed').style.color = 'var(--amber)';
+  } else {
+    document.getElementById('quotaUsed').style.color = 'var(--purple)';
+  }
+}
+
+function onQuotaModeChange() {
+  updateQuotaUI();
+}
+
+// Refresh quota display every 30s (for the reset countdown)
+setInterval(updateQuotaUI, 30000);
+
+// ETA tracking
+let etaStartTime = 0;
+let etaProcessed = 0;
+let etaTotal = 0;
+let etaInterval = null;
+
+// ── Logging ──────────────────────────────────────
+function log(msg, type = '') {
+  const box = document.getElementById('logBox');
+  const span = document.createElement('span');
+  span.className = type ? `log-${type}` : '';
+  span.textContent = msg + '\n';
+  box.appendChild(span);
+  box.scrollTop = box.scrollHeight;
+}
+
+// ── ETA helpers ──────────────────────────────────
+function formatDuration(ms) {
+  if (ms <= 0) return '< 1 s';
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s} s`;
+  const m = Math.floor(s / 60), rs = s % 60;
+  if (m < 60) return `${m} min ${rs} s`;
+  const h = Math.floor(m / 60), rm = m % 60;
+  return `${h} h ${rm} min`;
+}
+
+function updateETADisplay() {
+  if (etaStartTime === 0 || etaTotal === 0) return;
+  const done = etaProcessed;
+  const remain = etaTotal - done;
+  if (done === 0) {
+    document.getElementById('etaValue').textContent = '—';
+    document.getElementById('etaEnd').textContent = '—';
+    document.getElementById('etaSpeed').textContent = '—';
+    return;
+  }
+  const elapsed = Date.now() - etaStartTime;
+  const msPerItem = elapsed / done;
+  const etaMs = msPerItem * remain;
+  const endDate = new Date(Date.now() + etaMs);
+  const endStr = endDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const ipm = (done / (elapsed / 60000)).toFixed(1);
+
+  document.getElementById('etaValue').textContent = formatDuration(etaMs);
+  document.getElementById('etaEnd').textContent = `~ ${endStr}`;
+  document.getElementById('etaSpeed').textContent = `${ipm} mots/min`;
+}
+
+function startETA(total) {
+  etaStartTime = Date.now();
+  etaProcessed = 0;
+  etaTotal = total;
+  document.getElementById('etaPanel').classList.add('active');
+  clearInterval(etaInterval);
+  etaInterval = setInterval(updateETADisplay, 2000);
+}
+
+function stopETA() {
+  clearInterval(etaInterval);
+  etaInterval = null;
+  etaStartTime = 0;
+  document.getElementById('etaPanel').classList.remove('active');
+}
+
+// ── Lots restants UI ─────────────────────────────
+function updateBatchUI(done, total) {
+  document.getElementById('reqDone').textContent = done;
+  document.getElementById('reqRemaining').textContent = Math.max(0, total - done);
+  const pct = total ? Math.min(100, (done / total) * 100) : 0;
+  const fill = document.getElementById('reqFill');
+  fill.style.width = pct + '%';
+  fill.className = 'rate-fill' + (pct >= 100 ? '' : pct >= 70 ? '' : '');
+}
+
+// ── Storage ──────────────────────────────────────
+function save() {
+  localStorage.setItem("dictation_results", JSON.stringify(results));
+}
+
+function resetProgress() {
+  localStorage.removeItem("dictation_results");
+  log('↺ Sauvegarde supprimée.', 'warn');
+}
+
+// ── Model loader ──────────────────────────────────
+document.getElementById('modelSelect').addEventListener('change', function() {
+  if (this.value) SELECTED_MODEL = this.value;
+});
+
+async function chargerModeles() {
+  const key = api.value.trim();
+  if (!key) { log('Veuillez entrer votre clé API OpenRouter.', 'warn'); return; }
+
+  const statusEl = document.getElementById('modelsStatus');
+  const sel = document.getElementById('modelSelect');
+  statusEl.textContent = 'Chargement des modèles…';
+  statusEl.className = 'file-status';
+
+  try {
+    const r = await fetch('https://openrouter.ai/api/v1/models', {
+      headers: { 'Authorization': 'Bearer ' + key }
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+
+    const freeModels = (data.data || []).filter(m => {
+      const p = m.pricing || {};
+      const isFree = m.id.endsWith(':free') ||
+        (parseFloat(p.prompt || '0') === 0 && parseFloat(p.completion || '0') === 0);
+      return isFree;
+    });
+
+    if (!freeModels.length) {
+      statusEl.textContent = 'Aucun modèle gratuit trouvé.';
+      statusEl.className = 'file-status';
+      log('Aucun modèle gratuit trouvé pour cette clé.', 'warn');
+      return;
+    }
+
+    // Sort: gpt-oss first, then alphabetically
+    freeModels.sort((a, b) => a.id.localeCompare(b.id));
+
+    sel.innerHTML = '';
+    freeModels.forEach(m => {
+      const o = document.createElement('option');
+      o.value = m.id;
+      const ctx = m.context_length ? ` · ${Math.round(m.context_length / 1000)}K ctx` : '';
+      o.textContent = `${m.id}${ctx}`;
+      sel.appendChild(o);
+    });
+    sel.disabled = false;
+
+    // Preselect gpt-oss-120b:free if present, otherwise first
+    const preferred = freeModels.find(m => m.id === 'openai/gpt-oss-120b:free');
+    sel.value = preferred ? preferred.id : freeModels[0].id;
+    SELECTED_MODEL = sel.value;
+
+    statusEl.textContent = `✓ ${freeModels.length} modèles gratuits chargés.`;
+    statusEl.className = 'file-status loaded';
+    log(`${freeModels.length} modèles gratuits chargés — sélectionné : ${SELECTED_MODEL}`, 'ok');
+
+  } catch (e) {
+    statusEl.textContent = `Erreur : ${e.message}`;
+    statusEl.className = 'file-status';
+    log(`Erreur chargement des modèles : ${e.message}`, 'err');
+  }
+}
+
+// ── File loader ──────────────────────────────────
+document.getElementById('file').addEventListener('change', function(e) {
+  const f = e.target.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = evt => {
+    try {
+      const data = JSON.parse(evt.target.result);
+      const statusEl = document.getElementById('fileStatus');
+      statusEl.textContent = `✓ ${data.length} mots chargés — ${f.name}`;
+      statusEl.className = 'file-status loaded';
+      log(`Fichier chargé : ${data.length} mots (${f.name})`, 'ok');
+    } catch (err) {
+      log(`Erreur JSON : ${err.message}`, 'err');
+    }
+  };
+  reader.readAsText(f);
+});
+
+// ── Global uniqueness tracker ─────────────────────
+// Maintient un historique glissant pour garantir l'unicité sur les 10 825 phrases
+const UNIQUENESS_TRACKER = {
+  openers:    [],
+  subjects:   [],
+  verbs:      [],
+  structures: [],
+  recentSentences: [],
+  MAX_OPENERS:    20,
+  MAX_SUBJECTS:   20,
+  MAX_VERBS:      15,
+  MAX_STRUCTURES: 10,
+  MAX_RECENT:     5,
+
+  reset() {
+    this.openers    = [];
+    this.subjects   = [];
+    this.verbs      = [];
+    this.structures = [];
+    this.recentSentences = [];
+  },
+
+  _extractFeatures(sentenceEN) {
+    const s = sentenceEN.trim();
+    const words = s.split(/\s+/);
+    const opener = words.slice(0, 2).join(' ').replace(/[,\.!?]/, '').toLowerCase();
+    const firstWord = words[0].toLowerCase().replace(/[,\.!?]/, '');
+    const verb = words[1] ? words[1].toLowerCase().replace(/[,\.!?]/, '') : '';
+    const lenBucket = s.length < 50 ? 'short' : s.length < 90 ? 'medium' : 'long';
+    const structure = `${firstWord}|${lenBucket}`;
+    return { opener, subject: firstWord, verb, structure };
+  },
+
+  record(sentenceEN) {
+    if (!sentenceEN) return;
+    const f = this._extractFeatures(sentenceEN);
+    const push = (arr, val, max) => { arr.push(val); if (arr.length > max) arr.shift(); };
+    push(this.openers,    f.opener,    this.MAX_OPENERS);
+    push(this.subjects,   f.subject,   this.MAX_SUBJECTS);
+    push(this.verbs,      f.verb,      this.MAX_VERBS);
+    push(this.structures, f.structure, this.MAX_STRUCTURES);
+    push(this.recentSentences, sentenceEN.slice(0, 100), this.MAX_RECENT);
+  },
+
+  buildAntiRepeatBlock() {
+    const uniqueOpeners  = [...new Set(this.openers)].slice(-25);
+    const uniqueSubjects = [...new Set(this.subjects)].slice(-25);
+    const uniqueVerbs    = [...new Set(this.verbs)].slice(-20);
+    const recentSample   = this.recentSentences.slice(-10);
+
+    let block = '';
+
+    if (uniqueOpeners.length > 0) {
+      block += `\nGLOBAL VARIETY — ALREADY USED OPENERS (avoid repeating these starters across ALL sentences in this corpus):\n${uniqueOpeners.map(o => `  • "${o}…"`).join('\n')}\n`;
+    }
+    if (uniqueSubjects.length > 0) {
+      block += `\nALREADY USED GRAMMATICAL SUBJECTS (pick different ones):\n  ${uniqueSubjects.join(', ')}\n`;
+    }
+    if (uniqueVerbs.length > 0) {
+      block += `\nALREADY USED MAIN VERBS (diversify):\n  ${uniqueVerbs.join(', ')}\n`;
+    }
+    if (recentSample.length > 0) {
+      block += `\nRECENT SENTENCES (for context — make sure your new sentences feel clearly DIFFERENT in structure, topic and phrasing):\n${recentSample.map(s => `  – ${s}`).join('\n')}\n`;
+    }
+
+    return block;
+  }
+};
+
+// ── Subject pool used to force variety across sentences ──
+const SUBJECT_POOL = [
+  'I', 'you', 'he', 'she', 'we', 'they',
+  'my neighbor', 'my colleague', 'my cousin', 'my grandmother', 'my grandfather', 'my uncle', 'my aunt',
+  'the teacher', 'the doctor', 'the chef', 'the bus driver', 'the gardener', 'the mechanic', 'the artist', 'the farmer', 'the waiter',
+  'the children', 'the students', 'the tourists', 'the players', 'the neighbors', 'the passengers',
+  'Tom', 'Emma', 'Lucas', 'Sofia', 'Marco', 'Aisha', 'Liam', 'Noah', 'Mia', 'Carlos', 'Yuki', 'Leila',
+  'the cat', 'the dog', 'the birds',
+  'an old man', 'a young woman', 'a little boy', 'a little girl', 'a group of friends'
+];
+
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function pickSubjectHints(count) {
+  const shuffled = shuffleArray(SUBJECT_POOL);
+  const hints = [];
+  for (let i = 0; i < count; i++) hints.push(shuffled[i % shuffled.length]);
+  return hints;
+}
+
+// ── CECRL level descriptions ──────────────────────
+const LEVEL_DESCRIPTIONS = {
+  A1: 'A1 — VERY SHORT (5–8 words). Simple present tense only. Basic, high-frequency words a child would know. Pattern: Subject + verb + simple complement. Sounds like something a 6-year-old native speaker would say naturally. Example structure: "The dog runs fast." / "I like pizza." / "She has a red bag."',
+  A2: 'A2 — SHORT EVERYDAY SENTENCE (8–13 words). Use simple past, present or near future (going to). Familiar daily situations. Natural connectors: and, but, so, because. Feels like a real thing someone would text a friend. Example structure: "We went to the park and fed the ducks." / "She is going to visit her aunt next week."',
+  B1: 'B1 — REALISTIC, FLUENT SENTENCE (12–18 words). Mix tenses naturally (present, past, present perfect, future). Include one subordinate clause. Reads like a sentence from a graded reader or travel blog. Natural, conversational but correct. Example: "After finishing her homework, Emma went for a walk in the neighbourhood." / "He has always loved cooking, so he signed up for a class."',
+  B2: 'B2 — DEVELOPED, NUANCED SENTENCE (16–23 words). Rich vocabulary, varied clause types (relative, concessive, conditional). Logical connectors: although, despite, whereas, as long as. Idiomatic but not slang. Reads like a sentence from a quality newspaper article or novel. Conveys a complete, layered thought. Example: "Although the weather was unpredictable, they decided to go hiking because the scenery was worth the risk."',
+  C1: 'C1 — SOPHISTICATED, NATURAL ENGLISH (18–27 words). Complex syntax: fronted adverbials, cleft sentences, mixed conditionals, non-restrictive relative clauses. Varied register. Slight stylistic flair. Reads like confident native prose. Example: "Not until she arrived at the station did she realise she had left her passport at home, which meant a frantic taxi ride back."',
+  C2: 'C2 — NEAR-NATIVE MASTERY (20–30 words). Stylistic precision, subtle tonal control, idioms used with nuance, complex embedding. The sentence should feel crafted, like literary prose or high-quality journalism. May include irony, understatement or register shift. Example: "Having spent the better part of a decade abroad, he returned to find that home, rather than staying still, had quietly rearranged itself around his absence."'
+};
+
+const ALLOWED_THEMES = 'family, home, friends, school, hobbies, travel, food, shopping, sport, animals, weather, everyday health, transport, holidays, emotions, daily conversations, neighbourhood life, seasons, celebrations, cooking, pets, childhood memories';
+const FORBIDDEN_THEMES = 'business, finance, banking, marketing, sales, HR, professional IT, programming, cloud, cybersecurity, engineering, scientific research, academic jargon, legal jargon, specialized medical jargon, politics, religion, war, violence';
+
+// ── Build batch prompt with full CECRL ruleset ────
+function buildBatchPrompt(items, hints) {
+  const entries = items.map((item, i) => {
+    const levelDesc = LEVEL_DESCRIPTIONS[item.level] || LEVEL_DESCRIPTIONS.B1;
+    const meaningHint = item.translation ? ` | meaning hint (do NOT copy verbatim): ${item.translation}` : '';
+    return `${i}. id: ${item.id} | word: "${item.word}" | CEFR ${item.level || 'B1'} — ${levelDesc}${meaningHint} | suggested grammatical subject: "${hints[i]}"`;
+  }).join('\n');
+
+  const antiRepeat = UNIQUENESS_TRACKER.buildAntiRepeatBlock();
+
+  return `You are an expert bilingual (English / French) linguist building a large CEFR dictation corpus of 10,825 UNIQUE sentences.
+
+Your mission: for EACH of the ${items.length} entries below, write ONE English dictation sentence containing the target word, plus ONE natural French translation.
+
+ENTRIES:
+${entries}
+${antiRepeat}
+━━━ RULES FOR THE ENGLISH SENTENCES ━━━
+
+1. NATURALNESS (most important rule):
+   • Every sentence must sound like something a real native speaker would actually say or write in that context.
+   • Read it aloud in your head — if it sounds stiff, robotic, or textbook-like, rewrite it.
+   • A1/A2: conversational, child-friendly simplicity. B1/B2: natural spoken or written prose. C1/C2: stylistically confident, literary quality.
+   • Avoid formulaic openers. Never start a sentence with a mere translation of the word's definition.
+
+2. CEFR LEVEL COMPLIANCE:
+   • Strictly match the word count, grammar structures and vocabulary range described for each level above.
+   • A1: 5–8 words. A2: 8–13 words. B1: 12–18 words. B2: 16–23 words. C1: 18–27 words. C2: 20–30 words.
+   • Do NOT use vocabulary or syntax beyond the specified level.
+
+3. TARGET WORD:
+   • The exact word (or a natural grammatical inflection) MUST appear in the sentence.
+   • Use it in a way that feels natural and contextually motivated — not forced.
+
+4. TOPICS — ONLY use: ${ALLOWED_THEMES}
+   NEVER use: ${FORBIDDEN_THEMES}
+
+5. GRAMMATICAL SUBJECT:
+   • Use the "suggested grammatical subject" listed for each entry when it fits naturally.
+   • If it does not fit, choose a different, varied subject — but NEVER use "my sister", "my brother", "my mother", "my father".
+
+6. ABSOLUTE UNIQUENESS — THIS IS CRITICAL FOR A 10,825-SENTENCE CORPUS:
+   • Every sentence in this entire corpus must be COMPLETELY UNIQUE — different sentence structure, different subject, different verb, different context, different opener.
+   • NEVER reuse an opener already listed in "ALREADY USED OPENERS" above.
+   • NEVER reuse a grammatical subject already listed in "ALREADY USED GRAMMATICAL SUBJECTS" above.
+   • NEVER echo the structure, topic or phrasing of any sentence in "RECENT SENTENCES" above.
+   • Within THIS batch of ${items.length} sentences: vary every dimension — tense, clause type, sentence opener, subject, verb, topic, emotional tone.
+   • Forbidden openers (always banned): "I like…", "I have…", "This is…", "There is…", "There are…", "I saw…", "I went…", "I love…", "I want…", "She has…", "He has…"
+
+7. AMBIGUITY BONUS: When naturally possible for the word, craft the sentence so it carries a subtle ambiguity (lexical, structural, or tonal).
+
+━━━ RULES FOR THE FRENCH TRANSLATIONS ━━━
+• ONE natural, native-level French translation per sentence — how a real French speaker would naturally say it.
+• Plain sentence only. No notes, no parentheses, no commentary.
+• Use plain UTF-8 accents and apostrophes (é, è, à, œ, «, », '). No HTML entities.
+• Match the register of the English (casual for A1/A2, natural for B1/B2, elevated for C1/C2).
+
+━━━ OUTPUT FORMAT ━━━
+Return ONLY a valid JSON object.
+NEVER use:
+- "dictation sentence"
+- "example sentence"
+- placeholders
+- templates
+Every sentence must be fully written.
+Every translation must be fully written.
+The JSON must contain exactly the same number of items as requested.
+{
+  "items": [
+    { "id": 0, "word": "...", "level": "...", "dictationEnglish": "...", "dictationFrench": "..." }
+  ]
+}
+The "items" array must contain exactly ${items.length} objects, using the "id" values given above, in the same order as the entries.`;
+}
+
+// ── Clean model response before JSON.parse ────────
+function cleanResponse(txt) {
+  txt = txt.replace(/```json/gi, '');
+  txt = txt.replace(/```/g, '');
+  const start = txt.indexOf('{');
+  const end = txt.lastIndexOf('}');
+  if (start !== -1 && end !== -1) {
+    txt = txt.substring(start, end + 1);
+  }
+  return txt.trim();
+}
+
+function decodeHtmlEntities(str) {
+  const ta = document.createElement('textarea');
+  ta.innerHTML = str;
+  return ta.value;
+}
+
+// ── API call ─────────────────────────────────────
+async function callAPI(batch, key) {
+  await rateLimitWait();
+  requestTimestamps.push(Date.now());
+  incrementQuota();
+
+  const hints  = pickSubjectHints(batch.length);
+  const prompt = buildBatchPrompt(batch, hints);
+  const maxTokens = Math.min(8000, 220 * batch.length + 250);
+
+  const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + key,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: SELECTED_MODEL,
+      temperature: 0.7,
+      max_tokens: maxTokens,
+      response_format: {
+        type: "json_object"
+      },
+      messages: [
+        {
+          role: "system",
+          content: "Return ONLY valid JSON. No markdown. No explanations. No placeholders."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ]
+    })
+  });
+
+  if (!r.ok) throw new Error(await r.text());
+
+  const j = await r.json();
+  const raw = j.choices[0].message.content;
+  const clean = cleanResponse(raw);
+  let parsed;
+  try {
+    parsed = JSON.parse(clean);
+  }
+  catch(err) {
+    console.log(raw);
+    throw new Error("JSON invalide retourné par le modèle");
+  }
+  if (Array.isArray(parsed)) {
+    parsed = { items: parsed };
+  }
+  if (!parsed.items) {
+    throw new Error("Aucun tableau items");
+  }
+
+  // Record sentences for global anti-repetition tracking
+  if (Array.isArray(parsed.items)) {
+    parsed.items.forEach(it => {
+      if (it.dictationEnglish) {
+        it.dictationEnglish = decodeHtmlEntities(it.dictationEnglish);
+        it.dictationFrench  = decodeHtmlEntities(it.dictationFrench || '');
+        UNIQUENESS_TRACKER.record(it.dictationEnglish);
+      }
+    });
+  }
+
+  return parsed;
+}
+
+// ── Worker ───────────────────────────────────────
+async function worker(queue, key, total, totalBatches) {
+  while (queue.length) {
+    if (stopRequested) return;
+
+    const limit = getQuotaLimit();
+    if (loadQuota().count >= limit) {
+      log(`❌ Quota journalier atteint (${limit}/${limit}) — arrêt automatique.`, 'err');
+      stopRequested = true;
+      return;
+    }
+
+    const batch = queue.shift();
+    if (!batch) return;
+
+    let success = false;
+
+    for (let retry = 0; retry < 5 && !success; retry++) {
+      if (stopRequested) return;
+      try {
+        const data = await callAPI(batch, key);
+
+        if (!data.items || data.items.length !== batch.length) {
+          throw new Error(
+            `Lot incomplet : ${data.items?.length || 0}/${batch.length}`
+          );
+        }
+
+        if (Array.isArray(data.items) && data.items.length) {
+          const valid = data.items.filter(it => {
+            if (!it) return false;
+            if (!it.dictationEnglish) return false;
+            if (!it.dictationFrench) return false;
+            const en = it.dictationEnglish.trim().toLowerCase();
+            const fr = it.dictationFrench.trim().toLowerCase();
+            if (en.length < 10) return false;
+            if (fr.length < 10) return false;
+            if (en.includes("dictation sentence")) return false;
+            if (fr.includes("phrase de dictée")) return false;
+            if (en === "example sentence") return false;
+            return true;
+          });
+          if (valid.length < data.items.length) {
+            log(`  ⚠️ ${data.items.length - valid.length} item(s) invalide(s) ignoré(s) dans ce lot.`, 'warn');
+          }
+          const existing = new Set(results.map(x => x.id));
+          valid.forEach(item => {
+            if (!existing.has(item.id)) {
+              results.push(item);
+            }
+          });
+          save();
+        } else {
+          throw new Error('Réponse sans tableau "items" valide');
+        }
+
+        success = true;
+
+      } catch (e) {
+        log(`  ⚠️ Erreur (tentative ${retry + 1}/5) : ${e.message}`, 'warn');
+        await new Promise(res => setTimeout(res, 2000 * (retry + 1)));
+      }
+    }
+
+    if (success) {
+      etaProcessed++;
+      updateETADisplay();
+      updateBatchUI(etaProcessed, totalBatches);
+    }
+
+    const progress = (results.length / total) * 100;
+
+    document.getElementById('progressFill').style.width = progress + '%';
+    document.getElementById('progressCounter').textContent = `${results.length} / ${total}`;
+    document.getElementById('progressCurrent').textContent = `${results.length} dictées générées`;
+    log(`✓ Lot traité — ${results.length}/${total} dictées générées`, 'ok');
+  }
+}
+
+// ── Stop ─────────────────────────────────────────
+function stopRun() {
+  stopRequested = true;
+  alreadyDownloaded = true;
+  log('⏹ Arrêt demandé — téléchargement du JSON en cours…', 'warn');
+  stopETA();
+  downloadResults();
+}
+
+function downloadResults() {
+  const startId = Number(document.getElementById("startId").value);
+  const endId = Number(document.getElementById("endId").value);
+
+  const blob = new Blob(
+    [JSON.stringify(results, null, 2)],
+    { type: "application/json" }
+  );
+
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `dictations_${startId}_${endId}.json`;
+  a.click();
+
+  log(`🎉 JSON téléchargé : dictations_${startId}_${endId}.json`, 'ok');
+}
+
+// ── Main run ─────────────────────────────────────
+async function run() {
+  const key = api.value.trim();
+
+  if (!key) { log('Veuillez entrer votre clé API OpenRouter.', 'warn'); return; }
+  if (!SELECTED_MODEL) { log('Veuillez charger et choisir un modèle.', 'warn'); return; }
+  if (!file.files[0]) { log('Veuillez charger vocabulary.json.', 'warn'); return; }
+
+  const q = loadQuota();
+  const limit = getQuotaLimit();
+  if (q.count >= limit) {
+    log(`❌ Quota journalier atteint (${q.count}/${limit}). Réessayez après réinitialisation.`, 'err');
+    return;
+  }
+
+  stopRequested = false;
+  alreadyDownloaded = false;
+  UNIQUENESS_TRACKER.reset();
+  document.getElementById('actionBtn').disabled = true;
+  document.getElementById('stopBtn').style.display = 'flex';
+  document.getElementById('progressBlock').classList.add('active');
+
+  const raw = JSON.parse(await file.files[0].text());
+
+  const startId = Number(document.getElementById("startId").value);
+  const endId = Number(document.getElementById("endId").value);
+
+  results = JSON.parse(localStorage.getItem("dictation_results") || "[]");
+
+  const done = new Set(results.map(x => x.id));
+
+  const remaining = raw.filter(x =>
+    x.id >= startId &&
+    x.id <= endId &&
+    !done.has(x.id)
+  );
+
+  const total = endId - startId + 1;
+
+  const queue = [];
+  const batchSize = Number(batch.value);
+
+  for (let i = 0; i < remaining.length; i += batchSize) {
+    queue.push(remaining.slice(i, i + batchSize));
+  }
+
+  const totalBatches = queue.length;
+
+  log(`--- Génération : ID ${startId} → ID ${endId} (${remaining.length} mots restants) | modèle : ${SELECTED_MODEL} | lot de ${batchSize} | ${Number(parallel.value)} en parallèle ---`, 'purple');
+
+  startETA(totalBatches);
+  updateBatchUI(0, totalBatches);
+
+  document.getElementById('progressFill').style.width = (results.length / total * 100) + '%';
+  document.getElementById('progressCounter').textContent = `${results.length} / ${total}`;
+  document.getElementById('progressCurrent').textContent = `En cours…`;
+
+  const workers = [];
+
+  for (let i = 0; i < Number(parallel.value); i++) {
+    workers.push(worker(queue, key, total, totalBatches));
+  }
+
+  await Promise.all(workers);
+
+  stopETA();
+
+  if (!stopRequested) {
+    downloadResults();
+    document.getElementById('progressCurrent').textContent = "Terminé";
+    log('✅ Génération terminée.', 'ok');
+  } else if (results.length && !alreadyDownloaded) {
+    downloadResults();
+    document.getElementById('progressCurrent').textContent = "Arrêté — sauvegarde téléchargée";
+  }
+
+  document.getElementById('actionBtn').disabled = false;
+  document.getElementById('stopBtn').style.display = 'none';
+}
+
+// ── Init ──────────────────────────────────────────
+updateQuotaUI();
+</script>
+
+</body>
+</html>
