@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dictées CECRL — Gemini Pro</title>
+<style>
+body{background:#0b1220;color:#eef2ff;font-family:Inter,Arial;max-width:1100px;margin:auto;padding:28px}
+.card{background:#111827;border:1px solid #253047;border-radius:18px;padding:18px;margin:14px 0}
+input,select,button,textarea{width:100%;padding:12px;border-radius:12px;background:#0b1220;color:white;border:1px solid #334155}
+button{background:#2563eb;font-weight:700}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+pre{white-space:pre-wrap;max-height:420px;overflow:auto}
+.small{color:#94a3b8}
+.progress{height:12px;background:#1e293b;border-radius:999px;overflow:hidden}
+.bar{height:100%;width:0;background:#3b82f6}
+</style>
+</head>
+<body>
+
+<h1>✍️ Dictées CECRL — Gemini avancé</h1>
+
+<div class="card">
+<input id="api" type="password" placeholder="Clé API Gemini">
+<div class="small">Traitement par lots + reprise + cache local</div>
+</div>
+
+<div class="card">
+<input id="file" type="file" accept=".json">
+</div>
+
+<div class="card grid">
+<input id="start" type="number" value="1" placeholder="ID départ">
+<input id="count" type="number" value="300" placeholder="Nombre">
+<select id="model">
+<option>gemini-2.5-flash</option>
+<option>gemini-2.5-pro</option>
+</select>
+</div>
+
+<div class="card grid">
+<input id="batch" type="number" value="15" placeholder="Taille lot">
+<input id="pause" type="number" value="1500" placeholder="Pause ms">
+<button onclick="run()">Lancer</button>
+</div>
+
+<div class="card">
+<div class="progress"><div class="bar" id="bar"></div></div>
+<div id="status"></div>
+</div>
+
+<div class="card">
+<pre id="out"></pre>
+<button onclick="download()">Télécharger JSON</button>
+</div>
+
+<script>
+let finalData=[];
+
+const sleep=t=>new Promise(r=>setTimeout(r,t));
+
+async function gemini(prompt,key,model){
+ const r=await fetch(
+ `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+ {
+ method:"POST",
+ headers:{"Content-Type":"application/json"},
+ body:JSON.stringify({
+ generationConfig:{
+ temperature:1.15,
+ topP:0.95
+ },
+ contents:[{
+ parts:[{text:prompt}]
+ }]
+ })
+ });
+ if(!r.ok) throw new Error(await r.text());
+ const j=await r.json();
+ return j.candidates?.[0]?.content?.parts?.[0]?.text||"";
+}
+
+function prompt(batch){
+return `
+Tu crées des phrases de dictée.
+
+Règles strictes :
+- une phrase naturelle
+- pas de modèle répétitif
+- adapter syntaxe + vocabulaire au CECRL
+- éviter les phrases scolaires artificielles
+- anglais authentique
+- traduction française extrêmement fidèle
+- longueur variable
+- contexte réaliste
+
+Retour JSON uniquement :
+
+[
+{
+"id":0,
+"word":"",
+"level":"",
+"dictationEnglish":"",
+"dictationFrench":""
+}
+]
+
+Mots :
+${JSON.stringify(batch)}
+`;
+}
+
+async function run(){
+try{
+const key=api.value.trim();
+const model=modelEl.value;
+
+const raw=JSON.parse(await file.files[0].text());
+
+const startN=+start.value;
+const total=+count.value;
+const batchSize=+batch.value;
+const pauseMs=+pause.value;
+
+const list=raw.filter(v=>v.id>=startN).slice(0,total);
+
+finalData=[];
+
+for(let i=0;i<list.length;i+=batchSize){
+
+status.innerText=`Lot ${i+1}/${list.length}`;
+
+const current=list.slice(i,i+batchSize);
+
+const cacheKey="dictee_"+current[0].id;
+
+let data=localStorage.getItem(cacheKey);
+
+if(!data){
+const txt=await gemini(prompt(current),key,model);
+
+const clean=txt
+.replace(/^```json/,'')
+.replace(/```$/,'')
+.trim();
+
+localStorage.setItem(cacheKey,clean);
+
+data=clean;
+
+await sleep(pauseMs);
+}
+
+try{
+finalData.push(...JSON.parse(data));
+}catch{}
+
+bar.style.width=
+((i+batchSize)/list.length*100)+"%";
+
+out.textContent=
+JSON.stringify(finalData,null,2);
+}
+
+status.innerText="Terminé";
+
+}catch(e){
+status.innerText=e.message;
+}
+}
+
+function download(){
+const b=new Blob(
+[JSON.stringify(finalData,null,2)],
+{type:"application/json"}
+);
+
+const a=document.createElement("a");
+a.href=URL.createObjectURL(b);
+a.download="dictees_cecrl_gemini.json";
+a.click();
+}
+
+const api=document.getElementById("api");
+const file=document.getElementById("file");
+const start=document.getElementById("start");
+const count=document.getElementById("count");
+const batch=document.getElementById("batch");
+const modelEl=document.getElementById("model");
+const out=document.getElementById("out");
+const status=document.getElementById("status");
+const bar=document.getElementById("bar");
+
+</script>
+</body>
+</html>
