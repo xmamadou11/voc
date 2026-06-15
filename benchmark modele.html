@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Benchmark Modèles — Dictées CEFR</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:         #0b0d12;
+  --surface:    #12151e;
+  --surface2:   #191d29;
+  --surface3:   #1f2435;
+  --border:     #252d40;
+  --border2:    #2e3750;
+  --accent:     #4f8ef7;
+  --accent-dim: rgba(79,142,247,.15);
+  --green:      #22d07a;
+  --green-dim:  rgba(34,208,122,.13);
+  --amber:      #f0a500;
+  --amber-dim:  rgba(240,165,0,.13);
+  --red:        #f05050;
+  --red-dim:    rgba(240,80,80,.13);
+  --purple:     #a78bfa;
+  --purple-dim: rgba(167,139,250,.13);
+  --cyan:       #22d4e0;
+  --cyan-dim:   rgba(34,212,224,.13);
+  --text:       #e4e9f5;
+  --muted:      #6b7897;
+  --label:      #9aa3bd;
+  --mono:       'JetBrains Mono', monospace;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 32px 16px 80px;
+}
+
+/* ── Header ── */
+.header { text-align: center; margin-bottom: 32px; }
+.header .chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--cyan);
+  background: var(--cyan-dim); border: 1px solid rgba(34,212,224,.22);
+  padding: 4px 14px; border-radius: 20px; margin-bottom: 16px;
+}
+.header h1 { font-size: 26px; font-weight: 700; letter-spacing: -.4px; color: #fff; }
+.header p { margin-top: 6px; font-size: 13px; color: var(--muted); max-width: 520px; margin-inline: auto; }
+
+/* ── Layout ── */
+.wrap { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+
+/* ── Card ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px;
+}
+.card-title {
+  font-size: 10px; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 18px;
+  display: flex; align-items: center; gap: 8px;
+}
+.card-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* ── Form ── */
+label {
+  display: block; font-size: 12px; font-weight: 600;
+  color: var(--label); margin-bottom: 5px; letter-spacing: .03em;
+}
+input[type="password"], input[type="number"], select {
+  width: 100%; padding: 10px 13px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text);
+  font-family: 'Inter', sans-serif; font-size: 14px;
+  outline: none; transition: border-color .2s, box-shadow .2s;
+}
+input:focus, select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+.row { display: flex; gap: 12px; }
+.row > * { flex: 1; }
+.field { margin-bottom: 14px; }
+.field:last-child { margin-bottom: 0; }
+
+/* ── Buttons ── */
+.btn {
+  width: 100%; padding: 11px; border: none; border-radius: 8px;
+  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: opacity .2s, transform .1s;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+}
+.btn:active { transform: scale(.98); }
+.btn:disabled { opacity: .3; cursor: not-allowed; transform: none; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover:not(:disabled) { opacity: .88; }
+.btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border2); }
+.btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid rgba(240,80,80,.25); }
+.btn-danger:hover:not(:disabled) { background: rgba(240,80,80,.22); }
+
+/* ── Word pills ── */
+.word-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.word-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; background: var(--surface2);
+  border: 1px solid var(--border2); border-radius: 20px;
+  font-size: 12px; color: var(--text); cursor: default;
+}
+.word-pill .lvl {
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  padding: 1px 5px; border-radius: 4px;
+}
+.lvl-A1 { background: var(--green-dim);  color: var(--green);  }
+.lvl-A2 { background: var(--cyan-dim);   color: var(--cyan);   }
+.lvl-B1 { background: var(--accent-dim); color: var(--accent); }
+.lvl-B2 { background: var(--amber-dim);  color: var(--amber);  }
+.lvl-C1 { background: var(--red-dim);    color: var(--red);    }
+.lvl-C2 { background: var(--purple-dim); color: var(--purple); }
+
+/* ── Progress global ── */
+.bench-progress {
+  display: none; flex-direction: column; gap: 8px;
+}
+.bench-progress.active { display: flex; }
+.bp-header { display: flex; justify-content: space-between; align-items: center; }
+.bp-title { font-size: 12px; color: var(--label); font-weight: 500; }
+.bp-count { font-family: var(--mono); font-size: 12px; color: var(--purple); }
+.bp-track { background: var(--surface2); border-radius: 6px; height: 8px; overflow: hidden; }
+.bp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--purple), var(--accent));
+  border-radius: 6px; width: 0%;
+  transition: width .4s ease;
+}
+
+/* ── Log ── */
+.log-box {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 14px;
+  max-height: 160px; overflow-y: auto;
+  font-family: var(--mono); font-size: 11px; line-height: 1.8;
+  color: var(--muted); white-space: pre-wrap; word-break: break-word;
+}
+.log-box::-webkit-scrollbar { width: 3px; }
+.log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.ok   { color: var(--green);  }
+.warn { color: var(--amber);  }
+.err  { color: var(--red);    }
+.info { color: var(--accent); }
+.dim  { color: var(--purple); }
+
+/* ── Scoreboard ── */
+.scoreboard { display: none; flex-direction: column; gap: 10px; }
+.scoreboard.active { display: flex; }
+
+.score-row {
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 10px; padding: 14px 18px;
+  display: flex; align-items: center; gap: 14px;
+  transition: border-color .2s;
+}
+.score-row.winner { border-color: var(--green); background: var(--green-dim); }
+.score-row.failed { border-color: var(--red);   background: var(--red-dim);   }
+.score-row.running { border-color: var(--amber); }
+
+.score-rank {
+  font-family: var(--mono); font-size: 20px; font-weight: 700;
+  color: var(--muted); min-width: 36px; text-align: center;
+}
+.score-row.winner .score-rank { color: var(--green); }
+.score-model { flex: 1; min-width: 0; }
+.score-model-id {
+  font-family: var(--mono); font-size: 11px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.score-model-ctx { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.score-status {
+  font-size: 11px; font-family: var(--mono);
+  padding: 3px 9px; border-radius: 20px; white-space: nowrap;
+  font-weight: 600; flex-shrink: 0;
+}
+.status-pending  { background: var(--surface3); color: var(--muted); }
+.status-running  { background: var(--amber-dim); color: var(--amber); }
+.status-ok       { background: var(--green-dim); color: var(--green); }
+.status-fail     { background: var(--red-dim);   color: var(--red);   }
+.status-skip     { background: var(--surface3);  color: var(--muted); }
+
+.score-bar-wrap { width: 90px; flex-shrink: 0; }
+.score-bar-track { background: var(--surface); border-radius: 4px; height: 6px; overflow: hidden; }
+.score-bar-fill  { height: 100%; border-radius: 4px; transition: width .4s ease; }
+.score-pts { font-family: var(--mono); font-size: 14px; font-weight: 700; min-width: 44px; text-align: right; flex-shrink: 0; }
+.score-row.winner .score-pts { color: var(--green); }
+.score-row.failed .score-pts { color: var(--red); }
+
+/* ── Results detail ── */
+.results-grid {
+  display: none; flex-direction: column; gap: 24px;
+}
+.results-grid.active { display: flex; }
+
+.model-block {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+}
+.model-block-header {
+  padding: 14px 18px; background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+}
+.model-block-header .mh-rank {
+  font-family: var(--mono); font-size: 18px; font-weight: 700;
+  color: var(--muted);
+}
+.model-block.winner .model-block-header { background: rgba(34,208,122,.07); }
+.model-block.winner .mh-rank { color: var(--green); }
+.model-block-header .mh-info { flex: 1; min-width: 0; }
+.model-block-header .mh-name {
+  font-family: var(--mono); font-size: 12px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.model-block-header .mh-score {
+  font-family: var(--mono); font-size: 16px; font-weight: 700; color: var(--accent);
+  flex-shrink: 0;
+}
+.model-block.winner .mh-score { color: var(--green); }
+
+.score-breakdown {
+  display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 18px;
+  border-bottom: 1px solid var(--border); background: var(--bg);
+}
+.sb-pill {
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  padding: 3px 8px; border-radius: 6px;
+}
+
+.entries-list { padding: 12px 18px; display: flex; flex-direction: column; gap: 14px; }
+.entry-item { border-bottom: 1px solid var(--border); padding-bottom: 14px; }
+.entry-item:last-child { border-bottom: none; padding-bottom: 0; }
+.entry-word {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+.entry-word strong { font-size: 14px; color: #fff; }
+.entry-scores { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.es-badge {
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  padding: 2px 7px; border-radius: 5px;
+}
+.es-ok   { background: var(--green-dim); color: var(--green); }
+.es-warn { background: var(--amber-dim); color: var(--amber); }
+.es-fail { background: var(--red-dim);   color: var(--red);   }
+
+.sent {
+  font-size: 13px; line-height: 1.6; color: var(--text);
+  background: var(--surface2); border-radius: 6px;
+  padding: 9px 12px; margin-bottom: 6px;
+  border-left: 3px solid var(--border2);
+}
+.sent.highlight-word { border-left-color: var(--accent); }
+.sent-label { font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--muted); margin-bottom: 3px; }
+.sent-fr { border-left-color: var(--purple-dim); font-size: 12px; color: var(--label); }
+
+/* ── Tabs ── */
+.tab-bar { display: flex; gap: 4px; margin-bottom: 16px; }
+.tab-btn {
+  padding: 7px 14px; border: 1px solid var(--border2);
+  border-radius: 7px; background: var(--surface2);
+  color: var(--muted); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all .2s;
+}
+.tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.tab-btn:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ── Highlight word ── */
+.word-match { background: rgba(79,142,247,.22); border-radius: 3px; padding: 0 2px; color: var(--accent); font-weight: 600; }
+
+/* ── Empty state ── */
+.empty { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 13px; }
+
+/* ── Comparison table ── */
+.cmp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.cmp-table th {
+  text-align: left; padding: 8px 10px;
+  background: var(--surface2); color: var(--label);
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+  border-bottom: 1px solid var(--border2);
+}
+.cmp-table td {
+  padding: 8px 10px; border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.cmp-table tr:last-child td { border-bottom: none; }
+.cmp-table tr:hover td { background: var(--surface2); }
+.cmp-word { font-weight: 600; color: #fff; font-size: 13px; }
+.cmp-level { font-family: var(--mono); font-size: 10px; }
+.cmp-en { color: var(--text); line-height: 1.5; }
+.cmp-fr { color: var(--label); line-height: 1.5; font-style: italic; }
+.cmp-sc { font-family: var(--mono); font-weight: 700; font-size: 13px; }
+.cmp-ok   { color: var(--green); }
+.cmp-warn { color: var(--amber); }
+.cmp-fail { color: var(--red); }
+
+.tbl-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+
+/* ── Criteria legend ── */
+.criteria-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;
+}
+.criteria-item {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px;
+}
+.ci-name { font-size: 11px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+.ci-desc { font-size: 11px; color: var(--muted); line-height: 1.5; }
+.ci-pts  { font-family: var(--mono); font-size: 11px; color: var(--accent); margin-top: 4px; }
+
+.stat-inline { font-family: var(--mono); color: var(--purple); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="chip">⚡ OpenRouter · Benchmark · Dictées CEFR</div>
+  <h1>Comparateur de Modèles</h1>
+  <p>Teste tous les modèles de ta clé sur un lot de mots représentatifs et compare automatiquement la qualité des résultats.</p>
+</div>
+
+<div class="wrap">
+
+  <!-- Config -->
+  <div class="card">
+    <div class="card-title">Configuration</div>
+    <div class="row" style="align-items:flex-end">
+      <div class="field" style="margin-bottom:0">
+        <label>Clé OpenRouter</label>
+        <input type="password" id="apiKey" placeholder="sk-or-…" autocomplete="off">
+      </div>
+      <button class="btn btn-secondary" onclick="loadModels()" style="width:auto;white-space:nowrap;padding:10px 18px;flex-shrink:0">⟳ Charger les modèles</button>
+    </div>
+    <div id="modelsStatus" style="font-size:12px;color:var(--muted);margin-top:8px;font-family:var(--mono)">Entrez votre clé puis chargez les modèles.</div>
+  </div>
+
+  <!-- Test words config -->
+  <div class="card">
+    <div class="card-title">Mots de test</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px">
+      Lot de <span class="stat-inline" id="wordCount">0</span> mots — 1 par niveau CEFR minimum, représentatifs de ton corpus. Idéal : 6–12 mots pour avoir un benchmark significatif sans gaspiller de quota.
+    </p>
+    <div class="word-pills" id="wordPills"></div>
+
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+      <div class="row">
+        <div class="field" style="margin-bottom:0">
+          <label>Ajouter un mot</label>
+          <input type="text" id="addWord" placeholder="ex: grateful" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 13px;width:100%;font-size:14px;outline:none">
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label>Niveau CEFR</label>
+          <select id="addLevel">
+            <option value="A1">A1</option>
+            <option value="A2">A2</option>
+            <option value="B1" selected>B1</option>
+            <option value="B2">B2</option>
+            <option value="C1">C1</option>
+            <option value="C2">C2</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label>Traduction (optionnel)</label>
+          <input type="text" id="addTranslation" placeholder="ex: reconnaissant" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 13px;width:100%;font-size:14px;outline:none">
+        </div>
+      </div>
+      <button class="btn btn-secondary" onclick="addWord()" style="margin-top:10px;width:auto;padding:9px 18px">+ Ajouter</button>
+    </div>
+  </div>
+
+  <!-- Options -->
+  <div class="card">
+    <div class="card-title">Options du benchmark</div>
+    <div class="row">
+      <div class="field">
+        <label>Timeout par modèle (sec)</label>
+        <input type="number" id="timeoutSec" value="45" min="15" max="120">
+      </div>
+      <div class="field">
+        <label>Délai entre modèles (sec)</label>
+        <input type="number" id="delaySec" value="3" min="1" max="30">
+      </div>
+      <div class="field">
+        <label>Modèles max à tester</label>
+        <input type="number" id="maxModels" value="20" min="2" max="100">
+      </div>
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin-top:-6px">⚠️ Chaque modèle utilise 1 requête quota. Avec 20 modèles et 8 mots : 20 req. (~20 req/min limite gratuite)</p>
+    <div style="margin-top:14px;display:flex;gap:10px">
+      <button class="btn btn-primary" id="runBtn" onclick="runBenchmark()" disabled>🚀 Lancer le benchmark</button>
+      <button class="btn btn-danger" id="stopBtn" onclick="stopBenchmark()" style="width:auto;padding:11px 18px;display:none">⏹ Stop</button>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="card" id="progressCard" style="display:none">
+    <div class="card-title">Progression</div>
+    <div class="bench-progress active">
+      <div class="bp-header">
+        <span class="bp-title" id="progressTitle">En attente…</span>
+        <span class="bp-count" id="progressCount">0 / 0</span>
+      </div>
+      <div class="bp-track"><div class="bp-fill" id="progressFill"></div></div>
+    </div>
+    <div class="log-box" id="logBox" style="margin-top:12px">—</div>
+  </div>
+
+  <!-- Scoreboard -->
+  <div class="card" id="scoreboardCard" style="display:none">
+    <div class="card-title">🏆 Classement</div>
+    <div class="scoreboard active" id="scoreboard"></div>
+  </div>
+
+  <!-- Detailed results -->
+  <div class="card" id="resultsCard" style="display:none">
+    <div class="card-title">Résultats détaillés</div>
+
+    <div class="tab-bar" id="tabBar"></div>
+
+    <!-- Comparaison par mot -->
+    <div class="tab-content active" id="tabCompare">
+      <div class="tbl-wrap">
+        <table class="cmp-table" id="compareTable">
+          <thead>
+            <tr>
+              <th>Mot / Niveau</th>
+              <th id="cmpHead1">—</th>
+              <th id="cmpHead2">—</th>
+              <th id="cmpHead3">—</th>
+            </tr>
+          </thead>
+          <tbody id="compareBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Vue par modèle -->
+    <div class="tab-content" id="tabModels">
+      <div class="results-grid active" id="resultsGrid"></div>
+    </div>
+
+    <!-- Critères -->
+    <div class="tab-content" id="tabCriteria">
+      <div class="criteria-grid" id="criteriaGrid"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+// ── État ──────────────────────────────────────────
+let ALL_MODELS = [];
+let stopRequested = false;
+let benchResults = []; // [{model, score, items, error, ms}]
+let wordList = []; // [{id, word, level, translation}]
+
+// ── Mots par défaut ───────────────────────────────
+const DEFAULT_WORDS = [
+  { id: 1, word: 'happy',      level: 'A1', translation: 'heureux' },
+  { id: 2, word: 'journey',    level: 'A2', translation: 'voyage' },
+  { id: 3, word: 'challenge',  level: 'B1', translation: 'défi' },
+  { id: 4, word: 'persistent', level: 'B2', translation: 'persévérant' },
+  { id: 5, word: 'eloquent',   level: 'C1', translation: 'éloquent' },
+  { id: 6, word: 'ephemeral',  level: 'C2', translation: 'éphémère' },
+];
+
+// ── Critères d'évaluation ────────────────────────
+const CRITERIA = [
+  { key: 'json_valid',    label: 'JSON valide',        max: 20, desc: 'La réponse est du JSON parsable avec la structure attendue (items[]).' },
+  { key: 'completeness',  label: 'Complétude',         max: 15, desc: 'Tous les mots demandés sont présents dans la réponse.' },
+  { key: 'word_present',  label: 'Mot présent',        max: 15, desc: 'Le mot cible apparaît dans la phrase anglaise (forme exacte ou inflexion).' },
+  { key: 'cefr_length',   label: 'Longueur CEFR',      max: 15, desc: 'Le nombre de mots de la phrase respecte la plage CEFR du niveau.' },
+  { key: 'non_empty',     label: 'Non vide / non passe-partout', max: 10, desc: 'Phrases non génériques, non vides, non calquées.' },
+  { key: 'french_ok',     label: 'Traduction FR',      max: 10, desc: 'La traduction française existe, est non vide et ne copie pas l\'anglais.' },
+  { key: 'no_jargon',     label: 'Pas de jargon',      max: 10, desc: 'Absence de jargon professionnel/technique/financier interdit.' },
+  { key: 'speed',         label: 'Vitesse',            max: 5,  desc: 'Score de vitesse : 5 pts si < 10s, 4 pts si < 20s, 3 pts si < 30s, etc.' },
+];
+const MAX_SCORE = CRITERIA.reduce((s, c) => s + c.max, 0);
+
+// ── Niveaux CEFR → plages de mots ────────────────
+const CEFR_RANGES = { A1:[5,8], A2:[8,13], B1:[12,18], B2:[16,23], C1:[18,27], C2:[20,30] };
+const JARGON_WORDS = ['database','compliance','stakeholder','synergy','leverage','onboarding','bandwidth','scalable','roi','kpi','blockchain','sla','saas','crm','erp','api','cloud','sprint','scrum','agile','firewall','malware','encryption','algorithm','server','deployment'];
+const BANNED_STARTERS = ['i like','i have','this is','there is','there are','i saw','i went','i love','i want','she has','he has'];
+
+// ── Prompt builder (identique à tesbons_v7) ───────
+const LEVEL_DESCRIPTIONS = {
+  A1: 'A1 — VERY SHORT (5–8 words). Simple present tense only.',
+  A2: 'A2 — SHORT EVERYDAY (8–13 words). Simple past, present or going-to future.',
+  B1: 'B1 — FLUENT SENTENCE (12–18 words). Mixed tenses, one subordinate clause.',
+  B2: 'B2 — NUANCED SENTENCE (16–23 words). Rich vocabulary, varied clause types.',
+  C1: 'C1 — SOPHISTICATED (18–27 words). Complex syntax, fronted adverbials.',
+  C2: 'C2 — NEAR-NATIVE MASTERY (20–30 words). Stylistic precision, idiomatic nuance.'
+};
+const ALLOWED_THEMES  = 'family, home, friends, school, hobbies, travel, food, shopping, sport, animals, weather, everyday health, transport, holidays, emotions, daily conversations';
+const FORBIDDEN_THEMES = 'business, finance, banking, marketing, sales, HR, professional IT, programming, cloud, cybersecurity, engineering, scientific research, academic jargon, legal jargon';
+
+function buildPrompt(items) {
+  const entries = items.map((item, i) => {
+    const ld = LEVEL_DESCRIPTIONS[item.level] || LEVEL_DESCRIPTIONS.B1;
+    const mh = item.translation ? ` | meaning hint: ${item.translation}` : '';
+    return `${i}. id:${item.id} | word:"${item.word}" | CEFR ${item.level} — ${ld}${mh}`;
+  }).join('\n');
+
+  return `You are an expert bilingual (English / French) linguist building a CEFR dictation corpus.
+
+YOUR MISSION: For EACH of the ${items.length} entries below, produce ONE English dictation sentence and ONE French translation.
+CRITICAL: You MUST produce an output for EVERY entry. The output array MUST have EXACTLY ${items.length} items.
+
+ENTRIES:
+${entries}
+
+━━━ ENGLISH SENTENCE RULES ━━━
+1. The target "word" MUST appear in the sentence — its exact form OR a natural inflection.
+2. CEFR COMPLIANCE: A1:5-8w | A2:8-13w | B1:12-18w | B2:16-23w | C1:18-27w | C2:20-30w
+3. TOPICS ONLY: ${ALLOWED_THEMES}
+   NEVER use: ${FORBIDDEN_THEMES}
+4. Banned starters: "I like…", "I have…", "This is…", "There is/are…", "I saw…", "I went…"
+5. Varied structures: questions, exclamations, passive voice, fronted adverbials.
+
+━━━ FRENCH TRANSLATION RULES ━━━
+• Rewrite naturally in French, not word-for-word translation.
+• Use correct accents (é, è, à, ê, œ). Use « » for French quotes.
+• Match the CEFR register.
+
+━━━ OUTPUT ━━━
+Return ONLY a raw JSON object. No markdown. No backticks. No explanation. Start directly with {
+{
+  "items": [
+    { "id": <number>, "word": "<string>", "level": "<string>", "dictationEnglish": "<sentence>", "dictationFrench": "<traduction>" }
+  ]
+}`;
+}
+
+// ── JSON extractor (6 stratégies) ────────────────
+function extractJSON(raw) {
+  let txt = raw
+    .replace(/```json([\s\S]*?)```/gi, (_, i) => i)
+    .replace(/```([\s\S]*?)```/g,      (_, i) => i);
+  const fb = txt.indexOf('{'), lb = txt.lastIndexOf('}');
+  if (fb !== -1 && lb > fb) txt = txt.substring(fb, lb + 1);
+  try { return JSON.parse(txt); } catch(_) {}
+  txt = txt
+    .replace(/,(\s*[}\]])/g, '$1')
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/([^\\])\n/g, '$1 ');
+  try { return JSON.parse(txt); } catch(_) {}
+  const am = txt.match(/"items"\s*:\s*(\[[\s\S]*?\])\s*[,}]/);
+  if (am) { try { return { items: JSON.parse(am[1]) }; } catch(_) {} }
+  const pat = /\{\s*"id"\s*:\s*(\d+)\s*,\s*"word"\s*:\s*"([^"]+)"\s*,\s*"level"\s*:\s*"([^"]+)"\s*,\s*"dictationEnglish"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"dictationFrench"\s*:\s*"((?:[^"\\]|\\.)*)"\s*\}/g;
+  const items = []; let m;
+  while ((m = pat.exec(raw)) !== null) {
+    items.push({ id: parseInt(m[1],10), word: m[2], level: m[3], dictationEnglish: m[4].replace(/\\"/g,'"'), dictationFrench: m[5].replace(/\\"/g,'"') });
+  }
+  if (items.length > 0) return { items };
+  throw new Error("JSON non extractible");
+}
+
+// ── Scoring ───────────────────────────────────────
+function scoreResult(parsed, requestedItems, elapsedMs) {
+  const scores = {};
+  const detail = {};
+
+  // 1. JSON valide (20 pts)
+  if (parsed && parsed.items && Array.isArray(parsed.items)) {
+    scores.json_valid = 20;
+    detail.json_valid = 'OK';
+  } else {
+    scores.json_valid = 0;
+    detail.json_valid = 'FAIL';
+    // Tout le reste à 0
+    CRITERIA.forEach(c => { if (!(c.key in scores)) { scores[c.key] = 0; detail[c.key] = 'FAIL'; } });
+    scores.speed = scoreSpeed(elapsedMs);
+    detail.speed = `${Math.round(elapsedMs/1000)}s`;
+    return { scores, detail, total: Object.values(scores).reduce((a,b)=>a+b,0) };
+  }
+
+  const items = parsed.items;
+
+  // 2. Complétude (15 pts)
+  const foundIds = new Set(items.map(i => i.id));
+  const requestedIds = new Set(requestedItems.map(i => i.id));
+  const found = [...requestedIds].filter(id => foundIds.has(id)).length;
+  scores.completeness = Math.round((found / requestedIds.size) * 15);
+  detail.completeness = `${found}/${requestedIds.size}`;
+
+  // Per-item scores
+  let wordPresentPts = 0, cefrPts = 0, nonEmptyPts = 0, frenchPts = 0, jargonPts = 0;
+  const perItem = [];
+
+  items.forEach(item => {
+    const ref = requestedItems.find(r => r.id === item.id);
+    if (!ref) return;
+    const en = (item.dictationEnglish || '').trim();
+    const fr = (item.dictationFrench  || '').trim();
+    const wordCount = en.split(/\s+/).filter(Boolean).length;
+    const [minW, maxW] = CEFR_RANGES[item.level] || [8,18];
+    const enLow = en.toLowerCase();
+    const wordRoot = (ref.word || '').toLowerCase().slice(0, 4);
+
+    // Word present (15 pts total)
+    const wordInSent = wordRoot.length >= 4 && enLow.includes(wordRoot);
+    if (wordInSent) wordPresentPts++;
+
+    // CEFR length (15 pts total)
+    const cefrOk = wordCount >= minW && wordCount <= maxW;
+    if (cefrOk) cefrPts++;
+
+    // Non vide / non passe-partout (10 pts total)
+    const banned = BANNED_STARTERS.some(s => enLow.startsWith(s));
+    const tooShort = en.length < 10;
+    const placeholder = enLow.includes('dictation sentence') || enLow === 'example sentence';
+    if (!banned && !tooShort && !placeholder) nonEmptyPts++;
+
+    // French ok (10 pts total)
+    const frOk = fr.length > 10 && fr.toLowerCase() !== enLow;
+    if (frOk) frenchPts++;
+
+    // Jargon (10 pts total)
+    const hasJargon = JARGON_WORDS.some(j => enLow.includes(j));
+    if (!hasJargon) jargonPts++;
+
+    perItem.push({
+      word: ref.word, level: ref.level,
+      en, fr,
+      wordOk: wordInSent, cefrOk, frOk,
+      wordCount, range: [minW, maxW],
+      bannedStarter: banned, hasJargon
+    });
+  });
+
+  const n = requestedItems.length || 1;
+  scores.word_present = Math.round((wordPresentPts / n) * 15);
+  scores.cefr_length  = Math.round((cefrPts        / n) * 15);
+  scores.non_empty    = Math.round((nonEmptyPts     / n) * 10);
+  scores.french_ok    = Math.round((frenchPts       / n) * 10);
+  scores.no_jargon    = Math.round((jargonPts       / n) * 10);
+
+  detail.word_present = `${wordPresentPts}/${n}`;
+  detail.cefr_length  = `${cefrPts}/${n}`;
+  detail.non_empty    = `${nonEmptyPts}/${n}`;
+  detail.french_ok    = `${frenchPts}/${n}`;
+  detail.no_jargon    = `${jargonPts}/${n}`;
+
+  // Speed (5 pts)
+  scores.speed = scoreSpeed(elapsedMs);
+  detail.speed = `${(elapsedMs/1000).toFixed(1)}s`;
+
+  const total = Object.values(scores).reduce((a,b)=>a+b,0);
+  return { scores, detail, total, perItem };
+}
+
+function scoreSpeed(ms) {
+  if (ms < 10000) return 5;
+  if (ms < 20000) return 4;
+  if (ms < 30000) return 3;
+  if (ms < 45000) return 2;
+  return 1;
+}
+
+// ── DOM helpers ───────────────────────────────────
+function log(msg, cls='') {
+  const box = document.getElementById('logBox');
+  if (!box) return;
+  const span = document.createElement('span');
+  span.className = cls;
+  span.textContent = msg + '\n';
+  box.appendChild(span);
+  box.scrollTop = box.scrollHeight;
+}
+function clearLog() {
+  const box = document.getElementById('logBox');
+  if (box) box.textContent = '';
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Word list management ──────────────────────────
+function initWords() {
+  wordList = [...DEFAULT_WORDS];
+  renderWordPills();
+}
+
+function renderWordPills() {
+  const el = document.getElementById('wordPills');
+  el.innerHTML = '';
+  wordList.forEach((w, i) => {
+    const pill = document.createElement('span');
+    pill.className = 'word-pill';
+    pill.innerHTML = `<span class="lvl lvl-${w.level}">${w.level}</span>${w.word}<span style="cursor:pointer;color:var(--muted);font-size:13px;margin-left:2px" onclick="removeWord(${i})">×</span>`;
+    el.appendChild(pill);
+  });
+  document.getElementById('wordCount').textContent = wordList.length;
+}
+
+function addWord() {
+  const word = document.getElementById('addWord').value.trim();
+  const level = document.getElementById('addLevel').value;
+  const translation = document.getElementById('addTranslation').value.trim();
+  if (!word) return;
+  const id = (wordList.length > 0 ? Math.max(...wordList.map(w=>w.id)) : 0) + 1;
+  wordList.push({ id, word, level, translation });
+  renderWordPills();
+  document.getElementById('addWord').value = '';
+  document.getElementById('addTranslation').value = '';
+}
+
+function removeWord(i) {
+  wordList.splice(i, 1);
+  renderWordPills();
+}
+
+// ── Model loader ──────────────────────────────────
+async function loadModels() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) { alert('Entrez votre clé OpenRouter.'); return; }
+  const statusEl = document.getElementById('modelsStatus');
+  statusEl.textContent = '⟳ Chargement…';
+  statusEl.style.color = 'var(--amber)';
+  try {
+    const r = await fetch('https://openrouter.ai/api/v1/models', {
+      headers: { 'Authorization': 'Bearer ' + key }
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    const BANNED = ['openchat/openchat-7b','mistralai/mistral-7b-instruct','huggingfaceh4/zephyr-7b-beta','gryphe/mythomist-7b','undi95/toppy-m-7b'];
+    const MIN_CTX = 8000;
+    const allFree = (data.data || []).filter(m => {
+      const p = m.pricing || {};
+      return m.id.endsWith(':free') || (parseFloat(p.prompt||'1')===0 && parseFloat(p.completion||'1')===0);
+    });
+    ALL_MODELS = allFree.filter(m => {
+      if (BANNED.some(b => m.id.includes(b))) return false;
+      if (m.context_length && m.context_length < MIN_CTX) return false;
+      return true;
+    });
+    ALL_MODELS.sort((a,b) => (b.context_length||0) - (a.context_length||0));
+    statusEl.textContent = `✓ ${ALL_MODELS.length} modèles gratuits valides chargés.`;
+    statusEl.style.color = 'var(--green)';
+    document.getElementById('runBtn').disabled = (wordList.length === 0);
+    document.getElementById('maxModels').value = Math.min(20, ALL_MODELS.length);
+  } catch(e) {
+    statusEl.textContent = `Erreur : ${e.message}`;
+    statusEl.style.color = 'var(--red)';
+  }
+}
+
+// ── Benchmark runner ──────────────────────────────
+async function runBenchmark() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key || ALL_MODELS.length === 0 || wordList.length === 0) return;
+
+  stopRequested = false;
+  benchResults = [];
+
+  const maxM     = Math.min(parseInt(document.getElementById('maxModels').value)||20, ALL_MODELS.length);
+  const timeout  = (parseInt(document.getElementById('timeoutSec').value)||45) * 1000;
+  const delay    = (parseInt(document.getElementById('delaySec').value)||3) * 1000;
+  const modelsToTest = ALL_MODELS.slice(0, maxM);
+
+  // Show UI
+  document.getElementById('progressCard').style.display = 'block';
+  document.getElementById('scoreboardCard').style.display = 'block';
+  document.getElementById('resultsCard').style.display = 'none';
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('stopBtn').style.display = 'flex';
+  clearLog();
+  log(`🚀 Benchmark lancé — ${modelsToTest.length} modèles × ${wordList.length} mots`, 'dim');
+
+  // Init scoreboard rows
+  const sb = document.getElementById('scoreboard');
+  sb.innerHTML = '';
+  modelsToTest.forEach((m, i) => {
+    const row = document.createElement('div');
+    row.className = 'score-row';
+    row.id = `srow-${i}`;
+    row.innerHTML = `
+      <div class="score-rank">#${i+1}</div>
+      <div class="score-model">
+        <div class="score-model-id">${m.id}</div>
+        <div class="score-model-ctx">${m.context_length ? Math.round(m.context_length/1000)+'K ctx' : ''}</div>
+      </div>
+      <span class="score-status status-pending">En attente</span>
+      <div class="score-bar-wrap">
+        <div class="score-bar-track"><div class="score-bar-fill" id="sfill-${i}" style="width:0%;background:var(--muted)"></div></div>
+      </div>
+      <div class="score-pts" id="spts-${i}" style="color:var(--muted)">—</div>
+    `;
+    sb.appendChild(row);
+  });
+
+  // Run each model
+  for (let i = 0; i < modelsToTest.length; i++) {
+    if (stopRequested) break;
+    const m = modelsToTest[i];
+
+    // Update progress
+    document.getElementById('progressTitle').textContent = `Test en cours : ${m.id}`;
+    document.getElementById('progressCount').textContent = `${i+1} / ${modelsToTest.length}`;
+    document.getElementById('progressFill').style.width = ((i+1)/modelsToTest.length*100) + '%';
+
+    // Update row status
+    setRowStatus(i, 'running', '⟳ En cours…', 'var(--amber)');
+
+    log(`\n[${i+1}/${modelsToTest.length}] Test : ${m.id}`, 'info');
+
+    const t0 = Date.now();
+    let result = { model: m, score: null, items: null, error: null, ms: 0, scores: null, perItem: null };
+
+    try {
+      const systemInstruction = 'Return ONLY valid JSON. No markdown. No explanations. Start your response directly with {';
+      const prompt = buildPrompt(wordList);
+      const maxTokens = Math.min(8000, 450 * wordList.length + 500);
+      const useSystem = !m.id.includes('openchat');
+
+      const messages = useSystem
+        ? [{ role: 'system', content: systemInstruction }, { role: 'user', content: prompt }]
+        : [{ role: 'user', content: `[INSTRUCTION: ${systemInstruction}]\n\n${prompt}` }];
+
+      const fetchPromise = fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: m.id, temperature: 0.3, max_tokens: maxTokens, messages })
+      });
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`Timeout ${timeout/1000}s dépassé`)), timeout)
+      );
+
+      const r = await Promise.race([fetchPromise, timeoutPromise]);
+      result.ms = Date.now() - t0;
+
+      if (!r.ok) {
+        let msg = `HTTP ${r.status}`;
+        try { const ej = await r.json(); msg = ej.error?.message || ej.message || msg; } catch(_) {}
+        throw new Error(msg);
+      }
+
+      const j = await r.json();
+      const raw = j.choices?.[0]?.message?.content || '';
+      if (!raw.trim()) throw new Error('Réponse vide');
+
+      const parsed = extractJSON(raw);
+      if (Array.isArray(parsed)) { parsed = { items: parsed }; }
+
+      const scoring = scoreResult(parsed, wordList, result.ms);
+      result.score   = scoring.total;
+      result.scores  = scoring.scores;
+      result.detail  = scoring.detail;
+      result.perItem = scoring.perItem;
+      result.parsed  = parsed;
+      result.error   = null;
+
+      log(`✓ ${m.id} — score: ${scoring.total}/${MAX_SCORE} | ${(result.ms/1000).toFixed(1)}s`, 'ok');
+      setRowStatus(i, 'ok', `✓ ${scoring.total}/${MAX_SCORE}`, 'var(--green)', scoring.total / MAX_SCORE);
+
+    } catch(e) {
+      result.ms    = Date.now() - t0;
+      result.score = 0;
+      result.error = e.message;
+      log(`✗ ${m.id} — ÉCHEC : ${e.message}`, 'err');
+      setRowStatus(i, 'fail', `✗ Échec`, 'var(--red)', 0);
+    }
+
+    benchResults.push(result);
+
+    // Delay between models
+    if (i < modelsToTest.length - 1 && !stopRequested) {
+      log(`  ⏳ Pause ${delay/1000}s avant le modèle suivant…`, '');
+      await sleep(delay);
+    }
+  }
+
+  // Done
+  stopRequested = false;
+  document.getElementById('progressTitle').textContent = stopRequested ? '⏹ Arrêté' : '✅ Terminé';
+  document.getElementById('progressFill').style.width = '100%';
+  document.getElementById('runBtn').disabled = false;
+  document.getElementById('stopBtn').style.display = 'none';
+  log('\n✅ Benchmark terminé — affichage des résultats…', 'ok');
+
+  renderResults();
+}
+
+function stopBenchmark() {
+  stopRequested = true;
+  log('⏹ Arrêt demandé…', 'warn');
+}
+
+function setRowStatus(i, status, label, color, pct) {
+  const row  = document.getElementById(`srow-${i}`);
+  const fill = document.getElementById(`sfill-${i}`);
+  const pts  = document.getElementById(`spts-${i}`);
+  const statusEl = row?.querySelector('.score-status');
+  if (!row) return;
+  row.className = 'score-row' + (status === 'fail' ? ' failed' : status === 'running' ? ' running' : '');
+  if (statusEl) {
+    statusEl.className = `score-status status-${status}`;
+    statusEl.textContent = label;
+  }
+  if (fill && pct !== undefined) {
+    fill.style.width = (pct * 100) + '%';
+    fill.style.background = color;
+  }
+  if (pts) { pts.textContent = label; pts.style.color = color; }
+}
+
+// ── Render results ────────────────────────────────
+function renderResults() {
+  const card = document.getElementById('resultsCard');
+  card.style.display = 'block';
+
+  // Sort by score desc
+  const sorted = [...benchResults].filter(r => r.score !== null).sort((a,b) => b.score - a.score);
+  const failed  = benchResults.filter(r => r.error && r.score === 0);
+
+  // Update scoreboard with rank
+  sorted.forEach((r, i) => {
+    const modelIdx = benchResults.findIndex(b => b === r);
+    const row = document.getElementById(`srow-${modelIdx}`);
+    if (!row) return;
+    row.querySelector('.score-rank').textContent = `#${i+1}`;
+    if (i === 0) { row.className = 'score-row winner'; }
+  });
+
+  // Build tab bar
+  const tabBar = document.getElementById('tabBar');
+  tabBar.innerHTML = `
+    <button class="tab-btn active" onclick="switchTab('Compare',this)">📊 Comparaison par mot</button>
+    <button class="tab-btn" onclick="switchTab('Models',this)">🗂 Vue par modèle</button>
+    <button class="tab-btn" onclick="switchTab('Criteria',this)">📋 Critères</button>
+  `;
+
+  renderCompareTable(sorted);
+  renderModelCards(sorted, failed);
+  renderCriteria();
+}
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab'+name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── Comparison table ──────────────────────────────
+function renderCompareTable(sorted) {
+  const top3 = sorted.slice(0, 3);
+  const head = ['cmpHead1','cmpHead2','cmpHead3'];
+  top3.forEach((r, i) => {
+    const el = document.getElementById(head[i]);
+    if (el) el.textContent = `#${i+1} ${r.model.id.split('/').pop()} (${r.score}/${MAX_SCORE})`;
+  });
+  // Hide extra headers
+  for (let i = top3.length; i < 3; i++) {
+    const el = document.getElementById(head[i]);
+    if (el) el.textContent = '—';
+  }
+
+  const tbody = document.getElementById('compareBody');
+  tbody.innerHTML = '';
+
+  wordList.forEach(word => {
+    const tr = document.createElement('tr');
+    let html = `<td><div class="cmp-word">${word.word}</div><div class="cmp-level lvl-${word.level} lvl" style="display:inline-block;margin-top:3px">${word.level}</div></td>`;
+    top3.forEach(r => {
+      const pi = r.perItem?.find(p => p.word === word.word);
+      if (!pi) {
+        html += `<td><span style="color:var(--red);font-size:11px">Non retourné / échec</span></td>`;
+      } else {
+        const enHl = highlightWord(pi.en, word.word);
+        const sc   = (pi.wordOk ? 1 : 0) + (pi.cefrOk ? 1 : 0) + (pi.frOk ? 1 : 0);
+        const cls  = sc >= 3 ? 'cmp-ok' : sc >= 2 ? 'cmp-warn' : 'cmp-fail';
+        html += `<td>
+          <div class="cmp-en">${enHl}</div>
+          <div class="cmp-fr" style="margin-top:4px">${escHtml(pi.fr)}</div>
+          <div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap">
+            ${pi.wordOk ? badge('Mot ✓','cmp-ok') : badge('Mot ✗','cmp-fail')}
+            ${pi.cefrOk ? badge(`${pi.wordCount}w ✓ (${pi.range[0]}–${pi.range[1]})`, 'cmp-ok') : badge(`${pi.wordCount}w ✗ (${pi.range[0]}–${pi.range[1]})`, 'cmp-fail')}
+            ${pi.frOk   ? badge('FR ✓','cmp-ok')   : badge('FR ✗','cmp-fail')}
+            ${pi.hasJargon ? badge('Jargon ✗','cmp-fail') : ''}
+            ${pi.bannedStarter ? badge('Début ✗','cmp-warn') : ''}
+          </div>
+        </td>`;
+      }
+    });
+    // Fill empty columns
+    for (let i = top3.length; i < 3; i++) html += '<td></td>';
+    tr.innerHTML = html;
+    tbody.appendChild(tr);
+  });
+}
+
+function badge(txt, cls) {
+  return `<span class="cmp-sc ${cls}" style="font-size:10px;background:var(--surface2);padding:2px 6px;border-radius:4px;font-family:var(--mono)">${txt}</span>`;
+}
+
+function highlightWord(sent, word) {
+  if (!sent || !word) return escHtml(sent||'');
+  const root = word.toLowerCase().slice(0, 4);
+  if (root.length < 4) return escHtml(sent);
+  const safe = escHtml(sent);
+  const re = new RegExp(`(${escRegex(word)}\\w*)`, 'gi');
+  return safe.replace(re, `<span class="word-match">$1</span>`);
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+
+// ── Model cards ───────────────────────────────────
+function renderModelCards(sorted, failed) {
+  const grid = document.getElementById('resultsGrid');
+  grid.innerHTML = '';
+
+  [...sorted, ...failed.filter(f => !sorted.includes(f))].forEach((r, i) => {
+    const isWinner = i === 0 && !r.error;
+    const isFail   = !!r.error;
+    const rank     = isFail ? '✗' : `#${i+1}`;
+
+    const block = document.createElement('div');
+    block.className = 'model-block' + (isWinner ? ' winner' : '');
+
+    // Score breakdown pills
+    let breakdownHtml = '';
+    if (r.scores) {
+      CRITERIA.forEach(c => {
+        const val = r.scores[c.key] ?? 0;
+        const pct = c.max > 0 ? val / c.max : 0;
+        const col = pct >= .8 ? 'var(--green)' : pct >= .5 ? 'var(--amber)' : 'var(--red)';
+        breakdownHtml += `<span class="sb-pill" style="background:${col}22;color:${col}">${c.label}: ${val}/${c.max}</span>`;
+      });
+    }
+
+    // Per-item sentences
+    let itemsHtml = '';
+    if (r.perItem && r.perItem.length > 0) {
+      r.perItem.forEach(pi => {
+        const enHl = highlightWord(pi.en, pi.word);
+        const wcOk  = pi.cefrOk  ? 'es-ok' : 'es-fail';
+        const wdOk  = pi.wordOk  ? 'es-ok' : 'es-fail';
+        const frOk  = pi.frOk    ? 'es-ok' : 'es-fail';
+        const jargon = pi.hasJargon ? `<span class="es-badge es-fail">Jargon</span>` : '';
+        const banned = pi.bannedStarter ? `<span class="es-badge es-warn">Début banni</span>` : '';
+        itemsHtml += `
+          <div class="entry-item">
+            <div class="entry-word">
+              <span class="lvl lvl-${pi.level}">${pi.level}</span>
+              <strong>${escHtml(pi.word)}</strong>
+            </div>
+            <div class="entry-scores">
+              <span class="es-badge ${wdOk}">Mot ${pi.wordOk ? '✓' : '✗'}</span>
+              <span class="es-badge ${wcOk}">${pi.wordCount}w (${pi.range[0]}–${pi.range[1]}) ${pi.cefrOk ? '✓' : '✗'}</span>
+              <span class="es-badge ${frOk}">FR ${pi.frOk ? '✓' : '✗'}</span>
+              ${jargon}${banned}
+            </div>
+            <div class="sent-label">Anglais</div>
+            <div class="sent highlight-word">${enHl}</div>
+            <div class="sent-label">Français</div>
+            <div class="sent sent-fr">${escHtml(pi.fr)}</div>
+          </div>
+        `;
+      });
+    } else if (r.error) {
+      itemsHtml = `<div class="empty">❌ ${escHtml(r.error)}</div>`;
+    }
+
+    block.innerHTML = `
+      <div class="model-block-header">
+        <div class="mh-rank">${rank}</div>
+        <div class="mh-info">
+          <div class="mh-name">${escHtml(r.model.id)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${r.model.context_length ? Math.round(r.model.context_length/1000)+'K ctx' : ''} · ${(r.ms/1000).toFixed(1)}s</div>
+        </div>
+        <div class="mh-score">${isFail ? 'Échec' : r.score + '/' + MAX_SCORE}</div>
+      </div>
+      ${breakdownHtml ? `<div class="score-breakdown">${breakdownHtml}</div>` : ''}
+      <div class="entries-list">${itemsHtml}</div>
+    `;
+    grid.appendChild(block);
+  });
+}
+
+// ── Criteria card ─────────────────────────────────
+function renderCriteria() {
+  const grid = document.getElementById('criteriaGrid');
+  grid.innerHTML = '';
+  CRITERIA.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'criteria-item';
+    div.innerHTML = `
+      <div class="ci-name">${c.label}</div>
+      <div class="ci-desc">${c.desc}</div>
+      <div class="ci-pts">Max : ${c.max} pts</div>
+    `;
+    grid.appendChild(div);
+  });
+  // Total
+  const total = document.createElement('div');
+  total.className = 'criteria-item';
+  total.innerHTML = `<div class="ci-name" style="color:var(--accent)">TOTAL</div><div class="ci-pts" style="font-size:16px;margin-top:4px">/ ${MAX_SCORE} points</div>`;
+  grid.appendChild(total);
+}
+
+// ── Init ──────────────────────────────────────────
+initWords();
+renderCriteria();
+
+// Enter key on word input
+document.addEventListener('DOMContentLoaded', () => {
+  const inp = document.getElementById('addWord');
+  if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') addWord(); });
+});
+</script>
+</body>
+</html>
