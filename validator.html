@@ -371,7 +371,40 @@ function setFirebaseStatus(text, ok) {
   DOM.firebaseStatus.innerHTML = `<span class="sync-dot ${dotClass}" id="firebaseDot"></span>${text}`;
 }
 
-function connectFirebase(silent) {
+function resetState() {
+  // Réinitialise le STORE d'unicité
+  STORE.sentences.clear();
+  STORE.starters.clear();
+  STORE.patterns.clear();
+  STORE.ngrams.clear();
+  STORE.entries.length = 0;
+  STORE.recent.length  = 0;
+
+  // Réinitialise les stats
+  stats.total = 0; stats.pending = 0; stats.approved = 0;
+  stats.regenerated = 0; stats.rejected = 0;
+  updateStatsUI();
+
+  // Réinitialise la file de traitement
+  processQueue.length = 0;
+  queueRunning = false;
+  seenIds.clear();
+  Object.keys(itemsById).forEach(k => delete itemsById[k]);
+
+  // Réinitialise le feed UI
+  DOM.feed.innerHTML = '';
+  const empty = document.createElement('div');
+  empty.id = 'feedEmpty';
+  empty.className = 'feed-empty';
+  empty.textContent = 'En attente de connexion Firebase et de phrases entrantes…';
+  DOM.feed.appendChild(empty);
+  Object.keys(feedElements).forEach(k => delete feedElements[k]);
+
+  // Réinitialise le flag listener
+  listenerAttached = false;
+}
+
+async function connectFirebase(silent) {
   const raw = DOM.firebaseConfig.value.trim();
   if (!raw) {
     if (!silent) log('Veuillez coller votre configuration Firebase (objet JSON).', 'warn');
@@ -389,7 +422,23 @@ function connectFirebase(silent) {
   }
 
   try {
-    const app = firebase.apps.length ? firebase.apps[0] : firebase.initializeApp(config);
+    // Détacher l'ancienne app Firebase si elle existe (reconnexion / changement de config)
+    if (firebase.apps.length) {
+      try {
+        // Détacher les listeners existants avant de supprimer l'app
+        if (firebaseDB) {
+          firebaseDB.ref('dictees').off();
+          firebaseDB.ref('.info/connected').off();
+        }
+        await firebase.apps[0].delete();
+      } catch (_) {}
+    }
+
+    // Réinitialise tout l'état local AVANT de reconnecter
+    // (préserve ainsi les données Firebase — on recharge depuis /validated)
+    resetState();
+
+    const app = firebase.initializeApp(config);
     firebaseDB = firebase.database(app);
 
     firebaseDB.ref('.info/connected').on('value', snap => {
@@ -403,7 +452,8 @@ function connectFirebase(silent) {
     localStorage.setItem(FIREBASE_CONFIG_KEY, raw);
     if (!silent) log('🔥 Firebase connecté.', 'ok');
 
-    loadValidatedStore().then(() => attachDicteesListener());
+    await loadValidatedStore();
+    attachDicteesListener();
   } catch (e) {
     firebaseDB = null;
     setFirebaseStatus(`Erreur de connexion : ${e.message}`, false);
@@ -419,8 +469,10 @@ async function loadValidatedStore() {
     const snap = await firebaseDB.ref('validated').once('value');
     const data = snap.val() || {};
     Object.values(data).forEach(item => registerInStore(item, false));
-    stats.approved = STORE.entries.filter(e => !e.regenerated).length;
-    stats.regenerated = STORE.entries.filter(e => e.regenerated).length;
+    // Stats cohérentes : approved + regenerated = entrées du store
+    stats.approved    = STORE.entries.filter(e => !e.regenerated).length;
+    stats.regenerated = STORE.entries.filter(e =>  e.regenerated).length;
+    stats.total       = stats.approved + stats.regenerated;
     updateStatsUI();
     log(`📦 Magasin chargé : ${STORE.entries.length} dictées validées (unicité globale active).`, 'info');
   } catch (e) {
@@ -569,10 +621,15 @@ function checkStrict(item) {
     reasons.push(`Word count (${words.length}) out of CEFR ${level} range [${range[0]}-${range[1]}]`);
   }
 
-  // Présence du mot cible (forme exacte ou racine)
-  const root = word.length >= 4 ? word.slice(0, 4) : word;
-  if (root && !normalized.includes(root)) {
-    reasons.push(`Target word "${item.word}" not present in sentence`);
+  // Présence du mot cible (forme exacte ou inflexion naturelle)
+  // On cherche le mot entier ou une forme fléchie (pluriel, -ed, -ing, -er, -est…)
+  // via une regex à frontière de mot, pour éviter les faux positifs ("is" dans "this").
+  if (word) {
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const wordRegex = new RegExp(`\\b${escaped}`, 'i');
+    if (!wordRegex.test(en)) {
+      reasons.push(`Target word "${item.word}" not present in sentence`);
+    }
   }
 
   // Démarreurs interdits
@@ -637,12 +694,12 @@ function sanitizeItem(item) {
 // ════════════════════════════════════════════════════
 //  MODÈLES OPENROUTER (régénération)
 // ════════════════════════════════════════════════════
-DOM_modelSelectListener();
 function DOM_modelSelectListener() {
   document.getElementById('validatorModelSelect').addEventListener('change', function () {
     if (this.value) SELECTED_MODEL = this.value;
   });
 }
+DOM_modelSelectListener();
 
 async function chargerModelesValidator() {
   const key = DOM.validatorApiKey.value.trim();
@@ -1069,7 +1126,7 @@ async function processItem(id) {
       item.dictationEnglish = regen.dictationEnglish;
       item.dictationFrench  = regen.dictationFrench;
     } catch (e) {
-      log(`#${id} ⚠️ erreur régénération : ${e.message}`, 'warn');
+      log(`#${id} ⚠️ erreur régénération (tentative ${attempts}) : ${e.message}`, 'warn');
       await sleep(1500);
     }
   }
@@ -1097,8 +1154,9 @@ function manualRegenerate(id) {
   stats.rejected--;
   stats.pending++;
   updateStatsUI();
-  processQueue.push(id);
-  runQueue();
+  // Appel direct de processItem (sans passer par handleIncomingItem)
+  // pour éviter tout double-traitement via seenIds.
+  processItem(id).catch(e => log(`#${id} ⚠️ erreur régénération manuelle : ${e.message}`, 'err'));
 }
 
 function manualReject(id) {
@@ -1112,11 +1170,11 @@ function manualReject(id) {
 // ════════════════════════════════════════════════════
 //  INIT
 // ════════════════════════════════════════════════════
-(function initFromStorage() {
+(async function initFromStorage() {
   const saved = localStorage.getItem(FIREBASE_CONFIG_KEY);
   if (saved) {
     DOM.firebaseConfig.value = saved;
-    connectFirebase(true);
+    await connectFirebase(true);
   }
 })();
 updateStatsUI();
