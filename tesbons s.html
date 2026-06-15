@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OpenRouter 10825 Ultra V7</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<!-- Firebase (Realtime Database) — synchronisation temps réel avec le validateur -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -212,14 +215,45 @@
   /* ── File status ── */
   .file-status { font-size: 12px; font-family: var(--mono); color: var(--muted); margin-top: 6px; }
   .file-status.loaded { color: var(--green); }
+
+  /* ── Firebase sync card ── */
+  textarea {
+    width: 100%;
+    padding: 10px 13px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.5;
+    outline: none;
+    resize: vertical;
+    min-height: 76px;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+  .sync-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .sync-dot.on  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .sync-dot.off { background: var(--red); }
+  .sync-count { font-family: var(--mono); font-size: 22px; font-weight: 600; color: var(--green); }
+  .help-text { font-size: 12px; color: var(--muted); line-height: 1.6; margin-top: 8px; }
+  .help-text code { font-family: var(--mono); color: var(--accent); background: var(--surface2); padding: 1px 5px; border-radius: 4px; }
 </style>
 </head>
 <body>
 
 <div class="header">
-  <div class="badge">OpenRouter · V7 — Sujets contextuels par catégorie · ETA ultra-précis</div>
+  <div class="badge">OpenRouter · V7 — Sujets contextuels par catégorie · ETA ultra-précis · 🔥 Sync temps réel</div>
   <h1>10825 Mots — Ultra V7</h1>
-  <p>Génération de dictées via OpenRouter · Estimation de temps restant précise (moyenne mobile + plancher rate-limit)</p>
+  <p>Génération de dictées via OpenRouter · Envoi instantané phrase par phrase vers <code>validator.html</code> pour vérification</p>
 </div>
 
 <div class="wrapper">
@@ -236,6 +270,34 @@
     <div class="rate-item">
       <div class="rate-label">Lots restants</div>
       <div class="rate-value" id="reqRemaining" style="color:var(--muted)">—</div>
+    </div>
+  </div>
+
+  <!-- Synchronisation Firebase temps réel avec le validateur -->
+  <div class="card">
+    <div class="card-title">🔥 Synchronisation temps réel (Validateur)</div>
+
+    <div class="field">
+      <label for="firebaseConfig">Configuration Firebase (objet JSON — collez-le ici)</label>
+      <textarea id="firebaseConfig" placeholder='{"apiKey":"...","authDomain":"xxx.firebaseapp.com","databaseURL":"https://xxx-default-rtdb.firebaseio.com","projectId":"xxx"}'></textarea>
+    </div>
+    <button class="btn btn-secondary" onclick="connectFirebase()">🔌 Connecter / Mettre à jour</button>
+
+    <div class="row" style="margin-top:14px;align-items:center">
+      <div class="field" style="margin-bottom:0">
+        <div id="firebaseStatus" class="file-status">
+          <span class="sync-dot off" id="firebaseDot"></span>Non connecté — collez votre configuration Firebase ci-dessus.
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:0;max-width:140px;text-align:center">
+        <div class="rate-label">Envoyées</div>
+        <div class="sync-count" id="firebaseSentCount">0</div>
+      </div>
+    </div>
+
+    <div class="help-text">
+      ⚠️ Cette configuration est <strong>partagée</strong> avec <code>validator.html</code> (même origine GitHub Pages → même <code>localStorage</code>). Connectez-la une seule fois ici, le validateur la détectera automatiquement.<br>
+      Chaque phrase générée est envoyée <strong>en temps réel</strong>, une par une, vers <code>/dictees/&lt;id&gt;</code> dans Realtime Database avec le statut <code>pending</code>, dès qu'elle est créée et validée localement.
     </div>
   </div>
 
@@ -374,6 +436,11 @@ let results = [];
 let stopRequested = false;
 let alreadyDownloaded = false;
 
+// ── Firebase (sync temps réel avec validator.html) ──
+let firebaseDB        = null;
+let firebasePushCount = 0;
+const FIREBASE_CONFIG_KEY = 'shared_firebase_config'; // partagé via localStorage (même origine)
+
 // FIX #1 : références DOM explicites (plus de reliance sur l'id implicite global)
 const DOM = {
   get apiKey()        { return document.getElementById('apiKey'); },
@@ -403,6 +470,10 @@ const DOM = {
   get hasCreditsCheck(){ return document.getElementById('hasCreditsCheck'); },
   get modelsStatus()  { return document.getElementById('modelsStatus'); },
   get fileStatus()    { return document.getElementById('fileStatus'); },
+  get firebaseConfig()   { return document.getElementById('firebaseConfig'); },
+  get firebaseStatus()   { return document.getElementById('firebaseStatus'); },
+  get firebaseDot()      { return document.getElementById('firebaseDot'); },
+  get firebaseSentCount(){ return document.getElementById('firebaseSentCount'); },
 };
 
 // ── Rate limiter (20 req/min pour modèles gratuits) ──
@@ -424,6 +495,82 @@ async function rateLimitWait() {
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ── Firebase — synchronisation temps réel avec validator.html ──
+function updateFirebaseUI() {
+  DOM.firebaseSentCount.textContent = firebasePushCount;
+}
+
+function setFirebaseStatus(text, ok) {
+  const dotClass = ok === true ? 'on' : ok === false ? 'off' : '';
+  DOM.firebaseStatus.innerHTML = `<span class="sync-dot ${dotClass}" id="firebaseDot"></span>${text}`;
+}
+
+function connectFirebase(silent) {
+  const raw = DOM.firebaseConfig.value.trim();
+  if (!raw) {
+    if (!silent) log('Veuillez coller votre configuration Firebase (objet JSON).', 'warn');
+    setFirebaseStatus('Non connecté — collez votre configuration Firebase ci-dessus.', false);
+    return;
+  }
+
+  let config;
+  try {
+    config = JSON.parse(raw);
+  } catch (e) {
+    setFirebaseStatus(`Configuration JSON invalide : ${e.message}`, false);
+    if (!silent) log(`❌ Configuration Firebase invalide : ${e.message}`, 'err');
+    return;
+  }
+
+  try {
+    // Réutilise l'app existante si déjà initialisée (évite l'erreur "already exists")
+    const app = firebase.apps.length ? firebase.apps[0] : firebase.initializeApp(config);
+    firebaseDB = firebase.database(app);
+
+    // Test de connexion : ping un nœud sans bloquer l'UI
+    firebaseDB.ref('.info/connected').on('value', snap => {
+      if (snap.val() === true) {
+        setFirebaseStatus('Connecté — synchronisation temps réel active avec le validateur.', true);
+      } else {
+        setFirebaseStatus('Connexion en cours / hors-ligne…', false);
+      }
+    });
+
+    localStorage.setItem(FIREBASE_CONFIG_KEY, raw);
+    if (!silent) log('🔥 Firebase connecté — chaque dictée sera envoyée en temps réel au validateur.', 'ok');
+  } catch (e) {
+    firebaseDB = null;
+    setFirebaseStatus(`Erreur de connexion : ${e.message}`, false);
+    if (!silent) log(`❌ Erreur connexion Firebase : ${e.message}`, 'err');
+  }
+}
+
+// Envoie UNE phrase au validateur dès qu'elle est créée et validée localement.
+// Écrit sur /dictees/<id> avec statut "pending" — le validator.html écoute ce noeud
+// en temps réel, vérifie l'unicité globale, valide ✅ ou régénère 🔄 via l'IA.
+function pushToFirebase(item) {
+  if (!firebaseDB) return; // pas configuré : la génération continue normalement, sans sync
+  try {
+    firebaseDB.ref('dictees/' + item.id).set({
+      id:               item.id,
+      word:             item.word,
+      level:            item.level || 'B1',
+      dictationEnglish: item.dictationEnglish,
+      dictationFrench:  item.dictationFrench,
+      status:           'pending',          // pending | approved | rejected | regenerated
+      source:           'generator',
+      createdAt:        firebase.database.ServerValue.TIMESTAMP
+    }).then(() => {
+      firebasePushCount++;
+      updateFirebaseUI();
+    }).catch(e => {
+      log(`  ⚠️ Firebase : envoi échoué (id:${item.id}) — ${e.message}`, 'warn');
+    });
+  } catch (e) {
+    log(`  ⚠️ Firebase : envoi échoué (id:${item.id}) — ${e.message}`, 'warn');
+  }
 }
 
 // ── Quota journalier ──────────────────────────────
@@ -1272,8 +1419,8 @@ const LEVEL_DESCRIPTIONS = {
   A2: 'A2 — SHORT EVERYDAY (8–13 words). Simple past, present or going-to future. Natural connectors: and, but, so, because. Example: "We went to the park and fed the ducks."',
   B1: 'B1 — FLUENT SENTENCE (12–18 words). Mixed tenses, one subordinate clause. Natural, conversational. Example: "After finishing her homework, Emma went for a walk in the neighbourhood."',
   B2: 'B2 — NUANCED SENTENCE (16–23 words). Rich vocabulary, varied clause types, logical connectors: although, despite, whereas. Example: "Although the weather was unpredictable, they decided to go hiking because the scenery was worth the risk."',
-  C1: 'C1 — SOPHISTICATED (18–27 words). Complex syntax: fronted adverbials, cleft sentences, mixed conditionals. Confident native prose. Example: "Not until she arrived at the station did she realise she had left her passport at home."',
-  C2: 'C2 — NEAR-NATIVE MASTERY (20–30 words). Stylistic precision, idiomatic nuance, complex embedding. Literary or high-quality journalism register. Example: "Having spent the better part of a decade abroad, he returned to find that home had quietly rearranged itself around his absence."'
+  C1: 'C1 — SOPHISTICATED (20–30 words). Complex syntax: fronted adverbials, cleft sentences, mixed conditionals, idiomatic expressions, stylistic inversions. Confident native prose. Example: "Not until she arrived at the station did she realise she had left her passport at home, an oversight that would derail her plans entirely."',
+  C2: 'C2 — NEAR-NATIVE MASTERY (25–35 words). Literary, academic or journalistic register. Complex embedding, metaphors, philosophical/ironic nuance, stylistic precision. Example: "Having spent the better part of a decade abroad, he returned to find that home had quietly rearranged itself around his absence, rendering the familiar strangely, irreversibly foreign."'
 };
 
 const ALLOWED_THEMES  = 'family, home, friends, school, hobbies, travel, food, shopping, sport, animals, weather, everyday health, transport, holidays, emotions, daily conversations, neighbourhood life, seasons, celebrations, cooking, pets, childhood memories';
@@ -1297,11 +1444,25 @@ CRITICAL: You MUST produce an output for EVERY entry. Never skip, omit, or merge
 ENTRIES:
 ${entries}
 ${antiRepeat}
+━━━ REALISM & CREDIBILITY RULES (CRITICAL) ━━━
+1. ABSOLUTE CREDIBILITY: Every sentence must describe a situation from real life — daily, professional, academic, social or historical. No fantasy, no fairy tales, no absurd scenarios.
+2. NO HUMANISED ANIMALS: It is STRICTLY FORBIDDEN to give animals human behaviours (e.g. no rabbit hiring an agent, no crocodile running a business, no bear as an employer). If the target word is an animal, describe its natural behaviour OR place it in a logical human context. Example: "The guide warned the tourists that a crocodile was swimming near the boat."
+3. CAPITALISATION & TYPOGRAPHY: Every English sentence MUST begin with a CAPITAL letter. All proper nouns (names, cities…) MUST be capitalised.
+4. QUALITY EXAMPLES TO MATCH:
+   • word:"abandon" | B2 → "Although the structural repairs seemed nearly impossible, local authorities refused to abandon the historic landmark."
+   • word:"inadvertently" | C1 → "During the heated debate, the minister inadvertently disclosed confidential data, which instantly triggered a wave of public outrage."
+   • word:"ubiquitous" | C2 → "In our contemporary digital era, the ubiquitous nature of algorithms inadvertently reshapes human behavior, thereby challenging traditional notions of free will."
+
 ━━━ ENGLISH SENTENCE RULES ━━━
 1. MANDATORY: The target "word" MUST appear in the sentence — its exact form OR a natural grammatical inflection (plural, past tense, adjective form, etc.). If you cannot use the exact form, use the closest natural inflection. NEVER omit the word.
 2. NATURALNESS: Sound like a real native speaker, not a textbook. Varied rhythm, natural phrasing.
 3. CEFR COMPLIANCE: Match word count and grammar strictly for the level.
-   A1: 5–8 words | A2: 8–13 words | B1: 12–18 words | B2: 16–23 words | C1: 18–27 words | C2: 20–30 words
+   A1: 5–8 words — ultra-simple Subject+Verb+Complement only, high-frequency words.
+   A2: 8–13 words — simple past/future, connectors: and/but/so/because, everyday contexts.
+   B1: 12–18 words — mixed tenses, one subordinate clause, natural connectors.
+   B2: 16–23 words — complex subordinates (although/despite/whereas), rich vocabulary, logical density.
+   C1: 20–30 words — sophisticated syntax: fronted adverbials, cleft sentences, mixed conditionals, idiomatic expressions, stylistic inversions, confident native prose.
+   C2: 25–35 words — literary/academic/journalistic register, complex embedding, metaphors, philosophical or ironic nuance, near-native mastery.
 4. TOPICS — ONLY: ${ALLOWED_THEMES}
    NEVER use: ${FORBIDDEN_THEMES}
 5. SUBJECT: Feel free to use the suggested subject OR choose a completely different one — but vary subjects across sentences. Never use "my sister / brother / mother / father".
@@ -1322,8 +1483,10 @@ ${antiRepeat}
   ✅ Better: "C'est finalement elle qui est partie la première."
   ❌ "The dog ran quickly through the garden" → "Le chien a couru rapidement dans le jardin"
   ✅ Better: "Le chien a filé à toute vitesse à travers le jardin."
+  ❌ "across the floor" → "à travers le sol" ✅ Better: "sur le sol"
+• The French sentence MUST begin with a CAPITAL letter. All proper nouns MUST be capitalised.
 • Do NOT add notes, parentheses, or explanations.
-• Use correct UTF-8 accents (é, è, à, ê, œ, «, », '). No HTML entities. Use « » for French quotes.
+• Use correct UTF-8 accents (é, è, à, ê, œ, «, », \u2019). No HTML entities. Use « » for French quotes.
 • Match the register precisely: short and concrete for A1/A2, fluid and idiomatic for B1/B2, elegant and nuanced for C1/C2.
 
 ━━━ OUTPUT — CRITICAL ━━━
@@ -1515,6 +1678,32 @@ async function callAPI(batch, key) {
   return parsed;
 }
 
+// ── Sanitize dictation data (typographie & qualité) ──
+// Applique les règles de nettoyage automatique sur chaque item :
+// majuscule initiale, ponctuation finale, apostrophes typographiques FR.
+function sanitizeDictationData(item) {
+  let eng = item.dictationEnglish ? item.dictationEnglish.trim() : '';
+  let fre = item.dictationFrench  ? item.dictationFrench.trim()  : '';
+
+  if (eng) {
+    // Forcer la majuscule en début de phrase
+    eng = eng.charAt(0).toUpperCase() + eng.slice(1);
+    // S'assurer qu'il y a un signe de ponctuation final
+    if (!/[.!?]$/.test(eng)) eng += '.';
+  }
+
+  if (fre) {
+    fre = fre.charAt(0).toUpperCase() + fre.slice(1);
+    // Remplacer les apostrophes droites par des apostrophes typographiques françaises
+    fre = fre.replace(/'/g, '\u2019');
+    if (!/[.!?]$/.test(fre)) fre += '.';
+  }
+
+  item.dictationEnglish = eng;
+  item.dictationFrench  = fre;
+  return item;
+}
+
 // ── Worker ────────────────────────────────────────
 async function worker(queue, key, total, totalBatches) {
   while (queue.length) {
@@ -1576,6 +1765,8 @@ async function worker(queue, key, total, totalBatches) {
           if (fixedPair.rewritten) {
             UNIQUENESS_TRACKER.record(it.dictationEnglish);
           }
+          // Nettoyage typographique automatique (majuscules, ponctuation, apostrophes FR)
+          sanitizeDictationData(it);
           return true;
         });
 
@@ -1589,6 +1780,7 @@ async function worker(queue, key, total, totalBatches) {
           if (!existing.has(item.id)) {
             existing.add(item.id); // mise à jour immédiate pour les workers parallèles
             results.push(item);
+            pushToFirebase(item); // ⚡ envoi temps réel, phrase par phrase, vers le validateur
           }
         });
 
@@ -1779,6 +1971,16 @@ async function run() {
 
 // ── Init ──────────────────────────────────────────
 updateQuotaUI();
+
+// Auto-connexion Firebase si une configuration a déjà été enregistrée
+// (partagée via localStorage avec validator.html, même origine GitHub Pages)
+(function initFirebaseFromStorage() {
+  const saved = localStorage.getItem(FIREBASE_CONFIG_KEY);
+  if (saved) {
+    DOM.firebaseConfig.value = saved;
+    connectFirebase(true);
+  }
+})();
 </script>
 
 </body>
