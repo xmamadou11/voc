@@ -1105,7 +1105,10 @@ function ensureUniqueOrRewrite(en, fr, logCtx) {
     try {
       validateGlobalUniqueness(variant.en);
       log(`  ✓ Reformulation acceptée (essai ${attempt + 1}) : ${variant.en}`, 'info');
-      return { en: variant.en, fr: variant.fr, rewritten: true };
+      // S'assurer que la ponctuation et les prénoms sont corrects après réécriture
+      const tmp = { dictationEnglish: variant.en, dictationFrench: variant.fr };
+      sanitizeDictationData(tmp);
+      return { en: tmp.dictationEnglish, fr: tmp.dictationFrench, rewritten: true };
     } catch (_) {
       // continue vers la tentative suivante
     }
@@ -1604,7 +1607,7 @@ async function callAPI(batch, key) {
   const prompt    = buildBatchPrompt(batch, hints);
   const maxTokens = Math.min(8000, 450 * batch.length + 500);
 
-  const systemInstruction = 'Return ONLY valid JSON. No markdown. No explanations. No placeholders. Start your response directly with {';
+  const systemInstruction = 'Return ONLY valid JSON. No markdown. No explanations. No placeholders. Start your response directly with {. IMPORTANT: Proper nouns and first names (e.g. Samuel, Isaac, Emma, Liam) MUST always be capitalized wherever they appear in the sentence.';
 
   // FIX #11 pour models sans system role
   const messages = modelSupportsSystemRole(SELECTED_MODEL)
@@ -1680,7 +1683,39 @@ async function callAPI(batch, key) {
 
 // ── Sanitize dictation data (typographie & qualité) ──
 // Applique les règles de nettoyage automatique sur chaque item :
-// majuscule initiale, ponctuation finale, apostrophes typographiques FR.
+// majuscule initiale, majuscule des prénoms, ponctuation finale, apostrophes typographiques FR.
+
+// Liste plate de tous les prénoms connus (extraite de SUBJECT_CATEGORIES.first_names)
+// Utilisée pour forcer la majuscule où qu'ils apparaissent dans la phrase.
+const KNOWN_FIRST_NAMES = [
+  "Liam","Olivia","Noah","Emma","Oliver","Charlotte","Elijah","Amelia",
+  "James","Ava","William","Sophia","Benjamin","Isabella","Lucas","Mia",
+  "Henry","Evelyn","Theodore","Harper","Jack","Luna","Levi","Camila",
+  "Alexander","Gianna","Jackson","Elizabeth","Mateo","Eleanor","Daniel",
+  "Ella","Michael","Abigail","Mason","Sofia","Sebastian","Avery","Ethan",
+  "Jill","Logan","Emily","Owen","Scarlett","Samuel","Aria","Jacob",
+  "Penelope","Asher","Chloe","Aiden","Layla","John","Riley","Joseph",
+  "Zoey","Wyatt","Nora","David","Lily","Leo","Stella","Luke","Hazel",
+  "Julian","Aurora","Hudson","Maya","Grayson","Natalie","Matthew","Grace",
+  "Ezra","Hannah","Gabriel","Sarah","Carter","Alice","Isaac","Madelyn",
+  "Jayden","Violet","Luca","Bella","Anthony","Claire","Dylan","Skylar",
+  "Lincoln","Lucy","Thomas","Paisley","Maverick","Everly","Charles","Anna",
+  "Caleb","Caroline","Josiah","Nova"
+];
+
+// Regex construite une seule fois : cherche chaque prénom en minuscule (hors début de mot)
+// et le remplace par sa version avec majuscule.
+const FIRST_NAMES_REGEX = new RegExp(
+  '\\b(' + KNOWN_FIRST_NAMES.map(n => n.toLowerCase()).join('|') + ')\\b',
+  'g'
+);
+const FIRST_NAMES_MAP = {};
+KNOWN_FIRST_NAMES.forEach(n => { FIRST_NAMES_MAP[n.toLowerCase()] = n; });
+
+function capitalizeKnownNames(text) {
+  return text.replace(FIRST_NAMES_REGEX, match => FIRST_NAMES_MAP[match] || match);
+}
+
 function sanitizeDictationData(item) {
   let eng = item.dictationEnglish ? item.dictationEnglish.trim() : '';
   let fre = item.dictationFrench  ? item.dictationFrench.trim()  : '';
@@ -1688,12 +1723,16 @@ function sanitizeDictationData(item) {
   if (eng) {
     // Forcer la majuscule en début de phrase
     eng = eng.charAt(0).toUpperCase() + eng.slice(1);
+    // Forcer la majuscule sur tous les prénoms connus, où qu'ils soient dans la phrase
+    eng = capitalizeKnownNames(eng);
     // S'assurer qu'il y a un signe de ponctuation final
     if (!/[.!?]$/.test(eng)) eng += '.';
   }
 
   if (fre) {
     fre = fre.charAt(0).toUpperCase() + fre.slice(1);
+    // Forcer la majuscule sur tous les prénoms connus en français aussi
+    fre = capitalizeKnownNames(fre);
     // Remplacer les apostrophes droites par des apostrophes typographiques françaises
     fre = fre.replace(/'/g, '\u2019');
     if (!/[.!?]$/.test(fre)) fre += '.';
