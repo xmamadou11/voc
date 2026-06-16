@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Validateur Temps Réel — Dictées</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<!-- Firebase (Realtime Database) — synchronisation temps réel avec le générateur -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0d0f14;
+    --surface:   #141820;
+    --surface2:  #1c2230;
+    --border:    #252d3d;
+    --accent:    #4f8ef7;
+    --accent-glow: rgba(79,142,247,0.18);
+    --green:     #22d07a;
+    --green-dim: rgba(34,208,122,0.12);
+    --amber:     #f0a500;
+    --amber-dim: rgba(240,165,0,0.12);
+    --red:       #f04b4b;
+    --red-dim:   rgba(240,75,75,0.12);
+    --purple:    #a78bfa;
+    --purple-dim: rgba(167,139,250,0.12);
+    --text:      #e8ecf4;
+    --muted:     #6b7897;
+    --label:     #9aa3bd;
+    --mono:      'JetBrains Mono', monospace;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 40px 20px 60px;
+  }
+
+  /* ── Header ── */
+  .header { text-align: center; margin-bottom: 28px; }
+  .header .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-glow);
+    border: 1px solid rgba(79,142,247,.25);
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 14px;
+  }
+  .header h1 { font-size: 28px; font-weight: 700; letter-spacing: -.5px; color: #fff; }
+  .header p { margin-top: 6px; font-size: 14px; color: var(--muted); }
+  .header code { font-family: var(--mono); color: var(--accent); background: var(--surface2); padding: 1px 5px; border-radius: 4px; }
+
+  /* ── Layout ── */
+  .wrapper { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+  /* ── Stats panel ── */
+  .stats-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .stat-item { display: flex; flex-direction: column; align-items: center; min-width: 60px; }
+  .stat-label {
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    margin-bottom: 2px;
+    white-space: nowrap;
+  }
+  .stat-value { font-family: var(--mono); font-size: 20px; font-weight: 600; }
+  .stat-pending     { color: var(--amber); }
+  .stat-approved    { color: var(--green); }
+  .stat-regenerated { color: var(--purple); }
+  .stat-rejected    { color: var(--red); }
+  .stat-total       { color: var(--text); }
+  .stat-store       { color: var(--accent); }
+
+  /* ── Card ── */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px; }
+  .card-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* ── Form elements ── */
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--label);
+    margin-bottom: 6px;
+  }
+  input[type="text"],
+  input[type="password"],
+  select,
+  textarea {
+    width: 100%;
+    padding: 10px 13px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  textarea { font-family: var(--mono); font-size: 12px; line-height: 1.5; resize: vertical; min-height: 76px; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+  .row { display: flex; gap: 12px; }
+  .row .field { flex: 1; }
+
+  /* ── Buttons ── */
+  .btn {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .2s, transform .1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn:active { transform: scale(.98); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .btn-sm { width: auto; padding: 6px 12px; font-size: 12px; }
+  .btn-green  { background: var(--green-dim); color: var(--green); border: 1px solid rgba(34,208,122,.3); }
+  .btn-green:hover  { background: rgba(34,208,122,.22); }
+  .btn-purple { background: var(--purple-dim); color: var(--purple); border: 1px solid rgba(167,139,250,.3); }
+  .btn-purple:hover { background: rgba(167,139,250,.22); }
+  .btn-red    { background: var(--red-dim); color: var(--red); border: 1px solid rgba(240,75,75,.25); }
+  .btn-red:hover    { background: rgba(240,75,75,.22); }
+
+  /* ── Sync / status ── */
+  .sync-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--muted); margin-right:6px; vertical-align:middle; }
+  .sync-dot.on  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .sync-dot.off { background: var(--red); }
+  .file-status { font-size: 12px; font-family: var(--mono); color: var(--muted); margin-top: 6px; }
+  .file-status.loaded { color: var(--green); }
+  .help-text { font-size: 12px; color: var(--muted); line-height: 1.6; margin-top: 8px; }
+  .help-text code { font-family: var(--mono); color: var(--accent); background: var(--surface2); padding: 1px 5px; border-radius: 4px; }
+
+  /* ── Feed ── */
+  .feed { display:flex; flex-direction: column; gap: 10px; max-height: 560px; overflow-y: auto; padding-right: 4px; }
+  .feed::-webkit-scrollbar { width: 5px; }
+  .feed::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .feed-empty { font-size: 13px; color: var(--muted); text-align: center; padding: 30px 0; }
+  .feed-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    animation: fadeIn .25s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+  .feed-meta { display:flex; justify-content: space-between; align-items: center; font-family: var(--mono); font-size: 11px; color: var(--muted); margin-bottom: 8px; gap: 8px; }
+  .feed-meta .word { color: var(--label); font-weight: 600; }
+  .status-badge {
+    font-size: 10px;
+    padding: 3px 9px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    font-weight: 700;
+    font-family: var(--mono);
+    white-space: nowrap;
+  }
+  .status-badge.pending     { background: var(--amber-dim); color: var(--amber); }
+  .status-badge.processing  { background: var(--accent-glow); color: var(--accent); }
+  .status-badge.approved    { background: var(--green-dim); color: var(--green); }
+  .status-badge.regenerated { background: var(--purple-dim); color: var(--purple); }
+  .status-badge.rejected    { background: var(--red-dim); color: var(--red); }
+  .feed-text { font-size: 14px; line-height: 1.55; margin: 3px 0; }
+  .feed-text.fr { color: var(--label); }
+  .feed-reasons { font-size: 11px; color: var(--red); margin-top: 6px; font-family: var(--mono); }
+  .feed-actions { display:flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+  /* ── Log ── */
+  .log-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    max-height: 220px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--muted);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .log-box::-webkit-scrollbar { width: 4px; }
+  .log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .log-ok     { color: var(--green); }
+  .log-warn   { color: var(--amber); }
+  .log-err    { color: var(--red); }
+  .log-info   { color: var(--accent); }
+  .log-purple { color: var(--purple); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="badge">🛡️ Validateur · Filtre ultra strict · Unicité globale · Régénération IA</div>
+  <h1>Validateur de Dictées — Temps Réel</h1>
+  <p>Écoute <code>/dictees</code> en direct depuis <code>tesbons_s.html</code>, filtre, valide ✅ ou régénère 🔄 via l'IA, et stocke dans <code>/validated</code></p>
+</div>
+
+<div class="wrapper">
+
+  <!-- Synchronisation Firebase -->
+  <div class="card">
+    <div class="card-title">🔥 Synchronisation Firebase</div>
+    <div class="field">
+      <label for="firebaseConfig">Configuration Firebase (objet JSON)</label>
+      <textarea id="firebaseConfig" placeholder='{"apiKey":"...","authDomain":"xxx.firebaseapp.com","databaseURL":"https://xxx-default-rtdb.firebaseio.com","projectId":"xxx"}'></textarea>
+    </div>
+    <button class="btn btn-secondary" onclick="connectFirebase()">🔌 Connecter / Mettre à jour</button>
+    <button class="btn btn-red" onclick="wipeEverythingFromValidator()" style="margin-top:8px">🗑️ Tout effacer (générateur + validateur)</button>
+    <div id="firebaseStatus" class="file-status" style="margin-top:10px">
+      <span class="sync-dot off" id="firebaseDot"></span>Non connecté.
+    </div>
+    <div class="help-text">
+      ⚠️ Cette configuration est <strong>partagée</strong> avec <code>tesbons_s.html</code> (même origine GitHub Pages → même <code>localStorage</code>). Si vous l'avez déjà connectée sur le générateur, elle est chargée automatiquement ici.
+    </div>
+  </div>
+
+  <!-- Connexion OpenRouter (régénération IA) -->
+  <div class="card">
+    <div class="card-title">🤖 IA de Régénération (OpenRouter)</div>
+    <div class="row" style="align-items:flex-end">
+      <div class="field" style="margin-bottom:0">
+        <label for="validatorApiKey">Clé OpenRouter (régénération)</label>
+        <input id="validatorApiKey" type="password" placeholder="sk-or-…" autocomplete="off">
+      </div>
+      <button class="btn btn-secondary" onclick="chargerModelesValidator()" style="width:auto;white-space:nowrap;padding:10px 18px;flex-shrink:0">⟳ Charger modèles</button>
+    </div>
+    <div id="validatorModelsStatus" class="file-status" style="margin-top:8px">Entrez la clé puis chargez les modèles gratuits.</div>
+
+    <div class="field" style="margin-top:14px">
+      <label for="validatorModelSelect">Modèle de régénération (gratuit)</label>
+      <select id="validatorModelSelect" disabled>
+        <option value="">— Chargez d'abord les modèles —</option>
+      </select>
+    </div>
+
+    <div class="field" style="margin-bottom:0">
+      <label style="display:inline;font-size:13px">
+        <input type="checkbox" id="autoProcess" checked style="width:auto;display:inline;margin:0 6px 0 0;vertical-align:middle">
+        Traitement automatique en temps réel (recommandé)
+      </label>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-panel">
+    <div class="stat-item"><div class="stat-label">Reçues</div><div class="stat-value stat-total" id="statTotal">0</div></div>
+    <div class="stat-item"><div class="stat-label">En attente</div><div class="stat-value stat-pending" id="statPending">0</div></div>
+    <div class="stat-item"><div class="stat-label">Approuvées</div><div class="stat-value stat-approved" id="statApproved">0</div></div>
+    <div class="stat-item"><div class="stat-label">Régénérées</div><div class="stat-value stat-regenerated" id="statRegenerated">0</div></div>
+    <div class="stat-item"><div class="stat-label">Rejetées</div><div class="stat-value stat-rejected" id="statRejected">0</div></div>
+    <div class="stat-item"><div class="stat-label">Stock validé</div><div class="stat-value stat-store" id="statStore">0</div></div>
+  </div>
+
+  <!-- Flux temps réel -->
+  <div class="card">
+    <div class="card-title">📡 Flux temps réel</div>
+    <div class="feed" id="feed">
+      <div class="feed-empty" id="feedEmpty">En attente de connexion Firebase et de phrases entrantes…</div>
+    </div>
+  </div>
+
+  <!-- Journal -->
+  <div class="card">
+    <div class="card-title">Journal</div>
+    <div class="log-box" id="logBox">En attente de configuration…</div>
+  </div>
+
+</div><!-- /wrapper -->
+
+<script>
+'use strict';
+
+// ════════════════════════════════════════════════════
+//  ÉTAT GLOBAL
+// ════════════════════════════════════════════════════
+let firebaseDB         = null;
+let SELECTED_MODEL     = '';
+const FIREBASE_CONFIG_KEY = 'shared_firebase_config'; // partagé avec tesbons_s.html
+
+const DOM = {
+  get firebaseConfig()    { return document.getElementById('firebaseConfig'); },
+  get firebaseStatus()    { return document.getElementById('firebaseStatus'); },
+  get validatorApiKey()   { return document.getElementById('validatorApiKey'); },
+  get validatorModelsStatus() { return document.getElementById('validatorModelsStatus'); },
+  get validatorModelSelect()  { return document.getElementById('validatorModelSelect'); },
+  get autoProcess()       { return document.getElementById('autoProcess'); },
+  get feed()              { return document.getElementById('feed'); },
+  get feedEmpty()         { return document.getElementById('feedEmpty'); },
+  get logBox()            { return document.getElementById('logBox'); },
+  get statTotal()         { return document.getElementById('statTotal'); },
+  get statPending()       { return document.getElementById('statPending'); },
+  get statApproved()      { return document.getElementById('statApproved'); },
+  get statRegenerated()   { return document.getElementById('statRegenerated'); },
+  get statRejected()      { return document.getElementById('statRejected'); },
+  get statStore()         { return document.getElementById('statStore'); },
+};
+
+const stats = { total: 0, pending: 0, approved: 0, regenerated: 0, rejected: 0 };
+
+function updateStatsUI() {
+  DOM.statTotal.textContent       = stats.total;
+  DOM.statPending.textContent     = stats.pending;
+  DOM.statApproved.textContent    = stats.approved;
+  DOM.statRegenerated.textContent = stats.regenerated;
+  DOM.statRejected.textContent    = stats.rejected;
+  DOM.statStore.textContent       = STORE.entries.length;
+}
+
+// ── Logging ───────────────────────────────────────
+function log(msg, type = '') {
+  const box  = DOM.logBox;
+  const span = document.createElement('span');
+  span.className  = type ? `log-${type}` : '';
+  span.textContent = msg + '\n';
+  box.appendChild(span);
+  box.scrollTop = box.scrollHeight;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Efface tout depuis le validateur : /dictees + /validated sur Firebase.
+// Le générateur n'a rien à faire — son localStorage local n'est pas touché
+// (il garde sa progression d'écriture), mais le flux du validateur et le
+// magasin global d'unicité partagé sont vidés en direct pour tout le monde.
+async function wipeEverythingFromValidator() {
+  if (!firebaseDB) {
+    log('⚠️ Connectez Firebase avant de pouvoir tout effacer.', 'warn');
+    return;
+  }
+  const confirmed = confirm(
+    "⚠️ Cette action va effacer définitivement :\n" +
+    "• Toutes les dictées en attente/traitées (/dictees)\n" +
+    "• Tout le magasin validé (/validated)\n\n" +
+    "Le flux, les stats et le stock se videront en direct ici.\n\n" +
+    "Continuer ?"
+  );
+  if (!confirmed) return;
+
+  try {
+    await firebaseDB.ref('dictees').remove();
+    await firebaseDB.ref('validated').remove();
+    resetLocalState();
+    log('🗑️ Tout effacé : /dictees + /validated sur Firebase.', 'ok');
+  } catch (e) {
+    log(`❌ Erreur lors de l'effacement : ${e.message}`, 'err');
+  }
+}
+
+// ════════════════════════════════════════════════════
+//  FIREBASE — connexion partagée + listeners temps réel
+// ════════════════════════════════════════════════════
+function setFirebaseStatus(text, ok) {
+  const dotClass = ok === true ? 'on' : ok === false ? 'off' : '';
+  DOM.firebaseStatus.innerHTML = `<span class="sync-dot ${dotClass}" id="firebaseDot"></span>${text}`;
+}
+
+function resetState() {
+  resetLocalState();
+  // Réinitialise le flag listener (utilisé seulement lors d'une reconnexion manuelle,
+  // où l'ancienne app Firebase est supprimée donc les listeners n'existent plus).
+  listenerAttached = false;
+}
+
+// Réinitialise le store, les stats, la file et le feed — SANS toucher au flag
+// listenerAttached (utilisé quand le générateur efface tout à distance : les
+// listeners Firebase restent actifs, on vide juste l'état affiché).
+function resetLocalState() {
+  // Réinitialise le STORE d'unicité
+  STORE.sentences.clear();
+  STORE.starters.clear();
+  STORE.patterns.clear();
+  STORE.ngrams.clear();
+  STORE.entries.length = 0;
+  STORE.recent.length  = 0;
+
+  // Réinitialise les stats
+  stats.total = 0; stats.pending = 0; stats.approved = 0;
+  stats.regenerated = 0; stats.rejected = 0;
+  updateStatsUI();
+
+  // Réinitialise la file de traitement
+  processQueue.length = 0;
+  queueRunning = false;
+  seenIds.clear();
+  Object.keys(itemsById).forEach(k => delete itemsById[k]);
+
+  // Réinitialise le feed UI
+  DOM.feed.innerHTML = '';
+  const empty = document.createElement('div');
+  empty.id = 'feedEmpty';
+  empty.className = 'feed-empty';
+  empty.textContent = 'En attente de connexion Firebase et de phrases entrantes…';
+  DOM.feed.appendChild(empty);
+  Object.keys(feedElements).forEach(k => delete feedElements[k]);
+}
+
+async function connectFirebase(silent) {
+  const raw = DOM.firebaseConfig.value.trim();
+  if (!raw) {
+    if (!silent) log('Veuillez coller votre configuration Firebase (objet JSON).', 'warn');
+    setFirebaseStatus('Non connecté — collez votre configuration Firebase ci-dessus.', false);
+    return;
+  }
+
+  let config;
+  try {
+    config = JSON.parse(raw);
+  } catch (e) {
+    setFirebaseStatus(`Configuration JSON invalide : ${e.message}`, false);
+    if (!silent) log(`❌ Configuration Firebase invalide : ${e.message}`, 'err');
+    return;
+  }
+
+  try {
+    // Détacher l'ancienne app Firebase si elle existe (reconnexion / changement de config)
+    if (firebase.apps.length) {
+      try {
+        // Détacher les listeners existants avant de supprimer l'app
+        if (firebaseDB) {
+          firebaseDB.ref('dictees').off();
+          firebaseDB.ref('validated').off();
+          firebaseDB.ref('.info/connected').off();
+        }
+        await firebase.apps[0].delete();
+      } catch (_) {}
+    }
+
+    // Réinitialise tout l'état local AVANT de reconnecter
+    // (préserve ainsi les données Firebase — on recharge depuis /validated)
+    resetState();
+
+    const app = firebase.initializeApp(config);
+    firebaseDB = firebase.database(app);
+
+    firebaseDB.ref('.info/connected').on('value', snap => {
+      if (snap.val() === true) {
+        setFirebaseStatus('Connecté — écoute de /dictees en temps réel.', true);
+      } else {
+        setFirebaseStatus('Connexion en cours / hors-ligne…', false);
+      }
+    });
+
+    localStorage.setItem(FIREBASE_CONFIG_KEY, raw);
+    if (!silent) log('🔥 Firebase connecté.', 'ok');
+
+    await loadValidatedStore();
+    attachDicteesListener();
+  } catch (e) {
+    firebaseDB = null;
+    setFirebaseStatus(`Erreur de connexion : ${e.message}`, false);
+    if (!silent) log(`❌ Erreur connexion Firebase : ${e.message}`, 'err');
+  }
+}
+
+// Charge le magasin /validated existant pour initialiser le filtre d'unicité
+// global (persistant — fonctionne même après rechargement de la page).
+async function loadValidatedStore() {
+  if (!firebaseDB) return;
+  try {
+    const snap = await firebaseDB.ref('validated').once('value');
+    const data = snap.val() || {};
+    Object.values(data).forEach(item => registerInStore(item, false));
+    // Stats cohérentes : approved + regenerated = entrées du store
+    stats.approved    = STORE.entries.filter(e => !e.regenerated).length;
+    stats.regenerated = STORE.entries.filter(e =>  e.regenerated).length;
+    stats.total       = stats.approved + stats.regenerated;
+    updateStatsUI();
+    log(`📦 Magasin chargé : ${STORE.entries.length} dictées validées (unicité globale active).`, 'info');
+  } catch (e) {
+    log(`⚠️ Impossible de charger /validated : ${e.message}`, 'warn');
+  }
+}
+
+// Écoute /dictees en temps réel : chaque nouvelle phrase "pending" est traitée
+// dès qu'elle arrive — phrase par phrase, exactement comme elle est créée.
+// On écoute aussi l'événement racine 'value' pour détecter en direct le cas où
+// le générateur efface TOUT /dictees (bouton "Tout effacer") : le flux/feed/stats
+// du validateur se réinitialisent alors automatiquement, sans rien garder.
+let listenerAttached = false;
+function attachDicteesListener() {
+  if (!firebaseDB || listenerAttached) return;
+  listenerAttached = true;
+
+  firebaseDB.ref('dictees').on('child_added', snap => {
+    const item = snap.val();
+    if (!item || !item.id) return;
+    if (item.status !== 'pending') return; // déjà traité (processing/approved/rejected)
+    handleIncomingItem(item);
+  });
+
+  // Détecte l'effacement complet de /dictees (vidé depuis le générateur)
+  firebaseDB.ref('dictees').on('value', snap => {
+    if (snap.val() === null && seenIds.size > 0) {
+      log('🗑️ /dictees vidé depuis le générateur — réinitialisation du flux en direct.', 'warn');
+      resetLocalState();
+    }
+  });
+
+  // Détecte l'effacement complet de /validated (magasin global vidé)
+  firebaseDB.ref('validated').on('value', snap => {
+    if (snap.val() === null && STORE.entries.length > 0) {
+      log('🗑️ /validated vidé depuis le générateur — magasin d\'unicité réinitialisé en direct.', 'warn');
+      STORE.sentences.clear();
+      STORE.starters.clear();
+      STORE.patterns.clear();
+      STORE.ngrams.clear();
+      STORE.entries.length = 0;
+      STORE.recent.length  = 0;
+      stats.approved = 0;
+      stats.regenerated = 0;
+      stats.total = stats.pending + stats.rejected;
+      updateStatsUI();
+    }
+  });
+
+  log('📡 Écoute de /dictees activée — en attente de phrases…', 'info');
+}
+
+// ════════════════════════════════════════════════════
+//  MAGASIN GLOBAL D'UNICITÉ (persistant via /validated)
+// ════════════════════════════════════════════════════
+const STORE = {
+  sentences: new Set(),   // EN normalisées (doublon exact)
+  starters:  new Set(),   // 5 premiers mots normalisés
+  patterns:  new Set(),   // motif structurel des 8 premiers mots
+  ngrams:    new Set(),   // 6-grammes
+  entries:   [],          // [{id, en, fr, words:Set, wordCount, level, regenerated}]
+  recent:    []           // 15 dernières phrases EN acceptées (contexte anti-répétition)
+};
+
+function normalizeSentence(text) {
+  return String(text || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[.,!?;:'"()«»\u2019\u2018\u201C\u201D]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+function buildStarter(sentence) {
+  return normalizeSentence(sentence).split(' ').slice(0, 5).join(' ');
+}
+
+function buildPattern(sentence) {
+  return normalizeSentence(sentence).split(' ').slice(0, 8)
+    .map(w => w.length <= 3 ? w : '*').join(' ');
+}
+
+function get6grams(normalized) {
+  const words = normalized.split(' ');
+  const grams = [];
+  for (let i = 0; i <= words.length - 6; i++) grams.push(words.slice(i, i + 6).join(' '));
+  return grams;
+}
+
+function wordSet(sentence) {
+  return new Set(normalizeSentence(sentence).split(' ').filter(w => w.length > 2));
+}
+
+function jaccard(a, b) {
+  let inter = 0;
+  for (const w of a) if (b.has(w)) inter++;
+  const union = a.size + b.size - inter;
+  return union === 0 ? 0 : inter / union;
+}
+
+// Ajoute une dictée validée au magasin global (et à l'index d'unicité)
+function registerInStore(item, trackRecent = true) {
+  const en = item.dictationEnglish || '';
+  const normalized = normalizeSentence(en);
+  if (!normalized) return;
+
+  STORE.sentences.add(normalized);
+  STORE.starters.add(buildStarter(en));
+  STORE.patterns.add(buildPattern(en));
+  get6grams(normalized).forEach(g => STORE.ngrams.add(g));
+
+  STORE.entries.push({
+    id: item.id,
+    en, fr: item.dictationFrench || '',
+    words: wordSet(en),
+    wordCount: normalized.split(' ').length,
+    level: item.level || 'B1',
+    regenerated: !!item.regenerated
+  });
+
+  if (trackRecent) {
+    STORE.recent.push(en.slice(0, 130));
+    if (STORE.recent.length > 15) STORE.recent.shift();
+  }
+}
+
+function buildAntiRepeatBlock() {
+  if (!STORE.recent.length) return '';
+  return `\nRECENT ACCEPTED SENTENCES (the new one must be CLEARLY DIFFERENT — different opener, subject, verb, structure, situation):\n${STORE.recent.slice(-10).map(s => `  – ${s}`).join('\n')}\n`;
+}
+
+// ════════════════════════════════════════════════════
+//  FILTRE ULTRA STRICT
+// ════════════════════════════════════════════════════
+const LEVEL_WORD_RANGES = {
+  A1: [4, 9],
+  A2: [7, 14],
+  B1: [10, 19],
+  B2: [14, 24],
+  C1: [18, 31],
+  C2: [22, 36]
+};
+
+const BANNED_OPENERS = [
+  'i like', 'i have', 'this is', 'there is', 'there are',
+  'i saw', 'i went', 'i love', 'i want', 'she has', 'he has'
+];
+
+const FORBIDDEN_THEME_KEYWORDS = [
+  'business','finance','bank','marketing','sales','hr','human resources',
+  'programming','software','cloud','cybersecurity','engineering firm',
+  'scientific research','academic journal','legal','lawsuit','politic',
+  'election','religion','god','war','soldier','weapon','violence','blood'
+];
+
+const SIMILARITY_THRESHOLD = 0.5; // Jaccard — "ultra strict"
+
+// Vérifie une dictée selon toutes les règles strictes.
+// Retourne { ok: bool, reasons: [strings] }
+function checkStrict(item) {
+  const reasons = [];
+  const en = (item.dictationEnglish || '').trim();
+  const fr = (item.dictationFrench  || '').trim();
+  const word = (item.word || '').toLowerCase();
+  const level = item.level || 'B1';
+
+  if (en.length < 10) reasons.push('English sentence too short / empty');
+  if (fr.length < 10) reasons.push('French sentence too short / empty');
+  if (!en || !fr) return { ok: false, reasons };
+
+  const normalized = normalizeSentence(en);
+  const words = normalized.split(' ');
+  const range = LEVEL_WORD_RANGES[level] || LEVEL_WORD_RANGES.B1;
+  if (words.length < range[0] || words.length > range[1]) {
+    reasons.push(`Word count (${words.length}) out of CEFR ${level} range [${range[0]}-${range[1]}]`);
+  }
+
+  // Présence du mot cible (forme exacte ou inflexion naturelle)
+  // On cherche le mot entier ou une forme fléchie (pluriel, -ed, -ing, -er, -est…)
+  // via une regex à frontière de mot, pour éviter les faux positifs ("is" dans "this").
+  if (word) {
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const wordRegex = new RegExp(`\\b${escaped}`, 'i');
+    if (!wordRegex.test(en)) {
+      reasons.push(`Target word "${item.word}" not present in sentence`);
+    }
+  }
+
+  // Démarreurs interdits
+  const lowerEn = en.toLowerCase();
+  for (const opener of BANNED_OPENERS) {
+    if (lowerEn.startsWith(opener)) { reasons.push(`Banned opener "${opener}"`); break; }
+  }
+
+  // Thèmes interdits
+  for (const kw of FORBIDDEN_THEME_KEYWORDS) {
+    if (lowerEn.includes(kw)) { reasons.push(`Forbidden theme keyword "${kw}"`); break; }
+  }
+
+  // Doublon exact
+  if (STORE.sentences.has(normalized)) reasons.push('Exact duplicate sentence (global)');
+
+  // Starter déjà utilisé
+  const starter = buildStarter(en);
+  if (STORE.starters.has(starter)) reasons.push(`Opener already used globally: "${starter}…"`);
+
+  // Pattern déjà utilisé
+  const pattern = buildPattern(en);
+  if (STORE.patterns.has(pattern)) reasons.push('Structural pattern already used globally');
+
+  // 6-grammes déjà utilisés
+  for (const gram of get6grams(normalized)) {
+    if (STORE.ngrams.has(gram)) { reasons.push(`6-gram already used: "${gram}"`); break; }
+  }
+
+  // Similarité Jaccard avec des phrases de longueur proche
+  const ws = wordSet(en);
+  for (const entry of STORE.entries) {
+    if (Math.abs(entry.wordCount - words.length) > 4) continue;
+    const sim = jaccard(ws, entry.words);
+    if (sim >= SIMILARITY_THRESHOLD) {
+      reasons.push(`Too similar (${(sim*100).toFixed(0)}%) to validated sentence id:${entry.id}`);
+      break;
+    }
+  }
+
+  return { ok: reasons.length === 0, reasons };
+}
+
+// Nettoyage typographique (majuscule, ponctuation, apostrophes FR)
+function sanitizeItem(item) {
+  let en = (item.dictationEnglish || '').trim();
+  let fr = (item.dictationFrench  || '').trim();
+  if (en) {
+    en = en.charAt(0).toUpperCase() + en.slice(1);
+    if (!/[.!?]$/.test(en)) en += '.';
+  }
+  if (fr) {
+    fr = fr.charAt(0).toUpperCase() + fr.slice(1);
+    fr = fr.replace(/'/g, '\u2019');
+    if (!/[.!?]$/.test(fr)) fr += '.';
+  }
+  item.dictationEnglish = en;
+  item.dictationFrench  = fr;
+  return item;
+}
+
+// ════════════════════════════════════════════════════
+//  MODÈLES OPENROUTER (régénération)
+// ════════════════════════════════════════════════════
+function DOM_modelSelectListener() {
+  document.getElementById('validatorModelSelect').addEventListener('change', function () {
+    if (this.value) SELECTED_MODEL = this.value;
+  });
+}
+DOM_modelSelectListener();
+
+async function chargerModelesValidator() {
+  const key = DOM.validatorApiKey.value.trim();
+  if (!key) { log('Veuillez entrer votre clé API OpenRouter.', 'warn'); return; }
+
+  const statusEl = DOM.validatorModelsStatus;
+  const sel      = DOM.validatorModelSelect;
+  statusEl.textContent = 'Chargement des modèles…';
+  statusEl.className   = 'file-status';
+
+  try {
+    const r = await fetch('https://openrouter.ai/api/v1/models', {
+      headers: { 'Authorization': 'Bearer ' + key }
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+
+    const freeModels = (data.data || []).filter(m => {
+      const p = m.pricing || {};
+      return m.id.endsWith(':free') ||
+        (parseFloat(p.prompt || '1') === 0 && parseFloat(p.completion || '1') === 0);
+    });
+
+    if (!freeModels.length) {
+      statusEl.textContent = 'Aucun modèle gratuit trouvé.';
+      log('Aucun modèle gratuit trouvé pour cette clé.', 'warn');
+      return;
+    }
+
+    freeModels.sort((a, b) => a.id.localeCompare(b.id));
+    sel.innerHTML = '';
+    freeModels.forEach(m => {
+      const o   = document.createElement('option');
+      o.value   = m.id;
+      const ctx = m.context_length ? ` · ${Math.round(m.context_length / 1000)}K ctx` : '';
+      o.textContent = `${m.id}${ctx}`;
+      sel.appendChild(o);
+    });
+    sel.disabled = false;
+
+    const preferred = freeModels.find(m => m.id.includes('gpt-oss-120b'))
+      || freeModels.find(m => m.id.includes('llama'))
+      || freeModels[0];
+    sel.value      = preferred.id;
+    SELECTED_MODEL = preferred.id;
+
+    statusEl.textContent = `✓ ${freeModels.length} modèles gratuits chargés.`;
+    statusEl.className   = 'file-status loaded';
+    log(`${freeModels.length} modèles chargés — sélectionné : ${SELECTED_MODEL}`, 'ok');
+  } catch (e) {
+    statusEl.textContent = `Erreur : ${e.message}`;
+    log(`Erreur chargement des modèles : ${e.message}`, 'err');
+  }
+}
+
+const MODELS_NO_SYSTEM = ['openchat/openchat-7b', 'mistralai/mistral-7b-instruct:free'];
+function modelSupportsSystemRole(modelId) {
+  return !MODELS_NO_SYSTEM.some(m => modelId.includes(m));
+}
+const MODELS_JSON_MODE = [
+  'nvidia/', 'meta-llama/', 'qwen/', 'google/gemma', 'mistralai/mistral-nemo',
+  'mistralai/mistral-small', 'mistralai/mixtral', 'nousresearch/', 'thudm/'
+];
+function modelSupportsJsonMode(modelId) {
+  return MODELS_JSON_MODE.some(p => modelId.toLowerCase().includes(p.toLowerCase()));
+}
+
+// ── Extracteur JSON robuste (réutilisé du générateur) ──
+function extractJSON(raw) {
+  let txt = raw
+    .replace(/<think[\s\S]*?<\/think>/gi, '')
+    .replace(/<\|thinking\|>[\s\S]*?<\/\|thinking\|>/gi, '')
+    .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '')
+    .trim();
+
+  txt = txt
+    .replace(/```json([\s\S]*?)```/gi, (_, inner) => inner)
+    .replace(/```([\s\S]*?)```/g,      (_, inner) => inner);
+
+  const fb = txt.indexOf('{');
+  const lb = txt.lastIndexOf('}');
+  if (fb !== -1 && lb > fb) txt = txt.substring(fb, lb + 1);
+
+  try { return JSON.parse(txt); } catch (_) {}
+
+  txt = txt
+    .replace(/,(\s*[}\]])/g, '$1')
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/([^\\])\n/g, '$1 ');
+
+  try { return JSON.parse(txt); } catch (_) {}
+
+  const enMatch = txt.match(/"dictationEnglish"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  const frMatch = txt.match(/"dictationFrench"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if (enMatch && frMatch) {
+    return {
+      dictationEnglish: enMatch[1].replace(/\\"/g, '"'),
+      dictationFrench:  frMatch[1].replace(/\\"/g, '"')
+    };
+  }
+
+  throw new Error("Impossible d'extraire un JSON valide depuis la réponse du modèle");
+}
+
+function decodeHtmlEntities(str) {
+  if (!str) return '';
+  const ta = document.createElement('textarea');
+  ta.innerHTML = str;
+  return ta.value;
+}
+
+// ── Rate limiter (20 req/min, modèles gratuits) ──
+const RATE_WINDOW_MS = 60_000;
+const RATE_LIMIT_RPM = 20;
+let requestTimestamps = [];
+async function rateLimitWait() {
+  const now = Date.now();
+  requestTimestamps = requestTimestamps.filter(t => now - t < RATE_WINDOW_MS);
+  if (requestTimestamps.length >= RATE_LIMIT_RPM) {
+    const oldest = requestTimestamps[0];
+    const waitMs = RATE_WINDOW_MS - (now - oldest) + 300;
+    log(`⏳ Limite ${RATE_LIMIT_RPM} req/min atteinte — pause ${Math.ceil(waitMs / 1000)} s…`, 'warn');
+    await sleep(waitMs);
+    return rateLimitWait();
+  }
+}
+
+const ALLOWED_THEMES   = 'family, home, friends, school, hobbies, travel, food, shopping, sport, animals, weather, everyday health, transport, holidays, emotions, daily conversations, neighbourhood life, seasons, celebrations, cooking, pets, childhood memories';
+const FORBIDDEN_THEMES = 'business, finance, banking, marketing, sales, HR, professional IT, programming, cloud, cybersecurity, engineering, scientific research, academic jargon, legal jargon, specialized medical jargon, politics, religion, war, violence';
+
+const LEVEL_DESCRIPTIONS = {
+  A1: 'A1 — VERY SHORT (5–8 words). Simple present tense only. Basic high-frequency words. Pattern: Subject + verb + simple complement.',
+  A2: 'A2 — SHORT EVERYDAY (8–13 words). Simple past, present or going-to future. Natural connectors: and, but, so, because.',
+  B1: 'B1 — FLUENT SENTENCE (12–18 words). Mixed tenses, one subordinate clause. Natural, conversational.',
+  B2: 'B2 — NUANCED SENTENCE (16–23 words). Rich vocabulary, varied clause types, logical connectors: although, despite, whereas.',
+  C1: 'C1 — SOPHISTICATED (20–30 words). Complex syntax: fronted adverbials, cleft sentences, mixed conditionals, idiomatic expressions, stylistic inversions.',
+  C2: 'C2 — NEAR-NATIVE MASTERY (25–35 words). Literary, academic or journalistic register. Complex embedding, metaphors, philosophical/ironic nuance.'
+};
+
+// Construit le prompt de régénération d'UNE phrase rejetée
+function buildRegenPrompt(item, reasons) {
+  const levelDesc = LEVEL_DESCRIPTIONS[item.level] || LEVEL_DESCRIPTIONS.B1;
+  const antiRepeat = buildAntiRepeatBlock();
+
+  return `ROLE
+You are a senior educational linguist working for Cambridge English, Oxford University Press, and Pearson.
+Your mission is to create textbook-quality bilingual vocabulary examples.
+Naturalness is more important than creativity.
+Educational value is more important than originality.
+Predictability is desirable. Creativity is undesirable.
+Generate the sentence most likely to appear in an English textbook.
+Use the most common contemporary meaning and the most common real-world collocations.
+
+The following sentence pair was REJECTED by an automated strict validator and must be COMPLETELY REWRITTEN.
+
+TARGET ENTRY: word:"${item.word}" | CEFR ${item.level || 'B1'} — ${levelDesc}
+
+REJECTION REASONS (fix ALL of them):
+${reasons.map(r => `  • ${r}`).join('\n')}
+${antiRepeat}
+━━━ COLLOCATION RULES ━━━
+A sentence is invalid if a native speaker would find the word combination unusual.
+Always prefer: COMMON + NATURAL + FREQUENT
+If unsure: choose the most common collocation.
+Examples of good collocations:
+- acquire new skills / acquire experience
+- accuse someone of theft
+- reach an agreement
+- affect performance
+
+━━━ REALISM TEST ━━━
+Before writing, ask: Could this realistically happen?
+Reject: impossible situations, anthropomorphism, surreal events, fantasy, absurdity.
+
+━━━ RULES ━━━
+1. The target word "${item.word}" MUST appear (exact form or natural inflection).
+2. Match the CEFR word count and grammar exactly.
+3. TOPICS — ONLY: ${ALLOWED_THEMES}. NEVER use: ${FORBIDDEN_THEMES}.
+4. ABSOLUTE CREDIBILITY: real-life situation, no fantasy, no humanised animals.
+5. The sentence MUST be structurally and topically completely different from the rejected one and from the recent accepted sentences above. Different opener, different subject, different verb, different scene.
+6. Banned openers: "I like…", "I have…", "This is…", "There is…", "There are…", "I saw…", "I went…", "I love…", "I want…", "She has…", "He has…"
+7. English sentence starts with a capital letter, ends with proper punctuation.
+8. Internally generate 3 candidate sentences, then output only the best one (most natural collocation, most realistic scenario).
+
+━━━ FRENCH TRANSLATION ━━━
+• Do NOT translate word-for-word — rewrite naturally as a French native speaker would say it.
+• Capital letter at the start, correct accents, French curly apostrophe (\u2019), « » for quotes if needed.
+• Match the register of the CEFR level.
+
+━━━ OUTPUT ━━━
+Return ONLY a raw JSON object, no markdown, no explanation, starting directly with {
+{ "dictationEnglish": "<new sentence>", "dictationFrench": "<new translation>" }`;
+}
+
+// Appelle l'API OpenRouter pour régénérer UNE phrase
+async function callRegenerateAPI(item, reasons) {
+  const key = DOM.validatorApiKey.value.trim();
+  if (!key) throw new Error('Clé OpenRouter (régénération) manquante');
+  if (!SELECTED_MODEL) throw new Error('Aucun modèle de régénération sélectionné');
+
+  await rateLimitWait();
+  requestTimestamps.push(Date.now());
+
+  const prompt = buildRegenPrompt(item, reasons);
+  const systemInstruction = 'Return ONLY valid JSON. No markdown. No explanations. Start your response directly with {';
+
+  const messages = modelSupportsSystemRole(SELECTED_MODEL)
+    ? [{ role: 'system', content: systemInstruction }, { role: 'user', content: prompt }]
+    : [{ role: 'user', content: `[INSTRUCTION: ${systemInstruction}]\n\n${prompt}` }];
+
+  const body = {
+    model: SELECTED_MODEL,
+    temperature: 0.35,
+    max_tokens: 600,
+    messages,
+    ...(modelSupportsJsonMode(SELECTED_MODEL) ? { response_format: { type: 'json_object' } } : {})
+  };
+
+  const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+
+  if (!r.ok) {
+    let msg = `HTTP ${r.status}`;
+    try {
+      const errJson = await r.json();
+      msg = errJson.error?.message || errJson.message || msg;
+    } catch (_) {
+      try { msg = await r.text() || msg; } catch (_2) {}
+    }
+    throw new Error(msg);
+  }
+
+  const j = await r.json();
+  const choice = j.choices?.[0];
+  if (!choice) throw new Error('Réponse API sans choices');
+
+  const raw = choice.message?.content || choice.text || '';
+  if (!raw || !raw.trim()) throw new Error('Réponse vide du modèle');
+
+  const parsed = extractJSON(raw);
+  return {
+    dictationEnglish: decodeHtmlEntities(parsed.dictationEnglish || ''),
+    dictationFrench:  decodeHtmlEntities(parsed.dictationFrench  || '')
+  };
+}
+
+// ════════════════════════════════════════════════════
+//  ÉCRITURE FIREBASE
+// ════════════════════════════════════════════════════
+function saveValidated(item) {
+  if (!firebaseDB) return;
+  firebaseDB.ref('validated/' + item.id).set({
+    id: item.id,
+    word: item.word,
+    level: item.level || 'B1',
+    dictationEnglish: item.dictationEnglish,
+    dictationFrench: item.dictationFrench,
+    status: 'approved',
+    regenerated: !!item.regenerated,
+    validatedAt: firebase.database.ServerValue.TIMESTAMP
+  }).catch(e => log(`⚠️ Erreur écriture /validated id:${item.id} — ${e.message}`, 'warn'));
+}
+
+function updateDicteeStatus(id, status) {
+  if (!firebaseDB) return;
+  firebaseDB.ref('dictees/' + id + '/status').set(status)
+    .catch(e => log(`⚠️ Erreur mise à jour statut id:${id} — ${e.message}`, 'warn'));
+}
+
+// ════════════════════════════════════════════════════
+//  FLUX UI (feed)
+// ════════════════════════════════════════════════════
+const feedElements = {}; // id -> DOM element
+
+function ensureFeedItem(item) {
+  if (feedElements[item.id]) return feedElements[item.id];
+
+  DOM.feedEmpty.style.display = 'none';
+
+  const el = document.createElement('div');
+  el.className = 'feed-item';
+  el.innerHTML = `
+    <div class="feed-meta">
+      <span><span class="word">#${item.id} · ${escapeHtml(item.word)}</span> · ${escapeHtml(item.level || 'B1')}</span>
+      <span class="status-badge pending" data-role="badge">EN ATTENTE</span>
+    </div>
+    <div class="feed-text" data-role="en">${escapeHtml(item.dictationEnglish || '')}</div>
+    <div class="feed-text fr" data-role="fr">${escapeHtml(item.dictationFrench || '')}</div>
+    <div class="feed-reasons" data-role="reasons" style="display:none"></div>
+    <div class="feed-actions" data-role="actions" style="display:none"></div>
+  `;
+  DOM.feed.prepend(el);
+
+  // Limiter le nombre d'éléments affichés pour rester performant
+  while (DOM.feed.children.length > 80) {
+    const last = DOM.feed.lastElementChild;
+    if (last === DOM.feedEmpty) break;
+    DOM.feed.removeChild(last);
+  }
+
+  feedElements[item.id] = el;
+  return el;
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+const STATUS_LABELS = {
+  pending: 'EN ATTENTE',
+  processing: 'TRAITEMENT…',
+  approved: 'APPROUVÉE ✅',
+  regenerated: 'RÉGÉNÉRÉE 🔄',
+  rejected: 'REJETÉE ❌'
+};
+
+function setFeedStatus(item, status, reasons) {
+  const el = ensureFeedItem(item);
+  const badge = el.querySelector('[data-role="badge"]');
+  badge.className = `status-badge ${status}`;
+  badge.textContent = STATUS_LABELS[status] || status.toUpperCase();
+  el.querySelector('[data-role="en"]').textContent = item.dictationEnglish || '';
+  el.querySelector('[data-role="fr"]').textContent = item.dictationFrench || '';
+
+  const reasonsEl = el.querySelector('[data-role="reasons"]');
+  if (reasons && reasons.length) {
+    reasonsEl.style.display = 'block';
+    reasonsEl.textContent = '⚠ ' + reasons.join(' · ');
+  } else {
+    reasonsEl.style.display = 'none';
+  }
+
+  const actionsEl = el.querySelector('[data-role="actions"]');
+  if (status === 'rejected') {
+    actionsEl.style.display = 'flex';
+    actionsEl.innerHTML = `
+      <button class="btn btn-sm btn-green"  onclick="manualApprove(${item.id})">✅ Valider quand même</button>
+      <button class="btn btn-sm btn-purple" onclick="manualRegenerate(${item.id})">🔄 Régénérer</button>
+      <button class="btn btn-sm btn-red"    onclick="manualReject(${item.id})">❌ Rejeter définitivement</button>
+    `;
+  } else {
+    actionsEl.style.display = 'none';
+    actionsEl.innerHTML = '';
+  }
+}
+
+// ════════════════════════════════════════════════════
+//  TRAITEMENT (file séquentielle + filtre + régénération)
+// ════════════════════════════════════════════════════
+const itemsById = {};   // id -> item courant (pour les boutons manuels)
+const seenIds = new Set();
+let processQueue = [];
+let queueRunning = false;
+const MAX_REGEN_ATTEMPTS = 4;
+
+function handleIncomingItem(item) {
+  if (seenIds.has(item.id)) return;
+  seenIds.add(item.id);
+  itemsById[item.id] = { ...item };
+
+  stats.total++;
+  stats.pending++;
+  updateStatsUI();
+
+  ensureFeedItem(item);
+
+  if (DOM.autoProcess.checked) {
+    processQueue.push(item.id);
+    runQueue();
+  }
+}
+
+async function runQueue() {
+  if (queueRunning) return;
+  queueRunning = true;
+  while (processQueue.length) {
+    const id = processQueue.shift();
+    await processItem(id);
+  }
+  queueRunning = false;
+}
+
+async function processItem(id) {
+  const item = itemsById[id];
+  if (!item) return;
+
+  updateDicteeStatus(id, 'processing');
+  setFeedStatus(item, 'processing');
+  log(`#${id} (${item.word}) — vérification du filtre ultra strict…`, 'info');
+
+  let attempts = 0;
+  while (true) {
+    sanitizeItem(item);
+    const check = checkStrict(item);
+
+    if (check.ok) {
+      const wasRegenerated = attempts > 0;
+      item.regenerated = wasRegenerated;
+      registerInStore(item);
+      saveValidated(item);
+      updateDicteeStatus(id, wasRegenerated ? 'regenerated' : 'approved');
+
+      stats.pending--;
+      if (wasRegenerated) { stats.regenerated++; log(`#${id} ✅ acceptée après régénération (essai ${attempts}).`, 'ok'); }
+      else { stats.approved++; log(`#${id} ✅ approuvée directement.`, 'ok'); }
+
+      setFeedStatus(item, wasRegenerated ? 'regenerated' : 'approved');
+      updateStatsUI();
+      return;
+    }
+
+    log(`#${id} ❌ rejetée : ${check.reasons.join(' · ')}`, 'warn');
+
+    if (attempts >= MAX_REGEN_ATTEMPTS) {
+      updateDicteeStatus(id, 'rejected');
+      stats.pending--;
+      stats.rejected++;
+      setFeedStatus(item, 'rejected', check.reasons);
+      updateStatsUI();
+      log(`#${id} ❌ abandonnée après ${MAX_REGEN_ATTEMPTS} régénérations — révision manuelle requise.`, 'err');
+      return;
+    }
+
+    if (!DOM.validatorApiKey.value.trim() || !SELECTED_MODEL) {
+      updateDicteeStatus(id, 'rejected');
+      stats.pending--;
+      stats.rejected++;
+      setFeedStatus(item, 'rejected', [...check.reasons, 'Aucune clé/modèle de régénération configuré']);
+      updateStatsUI();
+      log(`#${id} ❌ rejetée — configurez une clé OpenRouter pour activer la régénération automatique.`, 'err');
+      return;
+    }
+
+    attempts++;
+    setFeedStatus(item, 'processing', check.reasons);
+    log(`#${id} 🔄 régénération via IA — tentative ${attempts}/${MAX_REGEN_ATTEMPTS}…`, 'purple');
+
+    try {
+      const regen = await callRegenerateAPI(item, check.reasons);
+      item.dictationEnglish = regen.dictationEnglish;
+      item.dictationFrench  = regen.dictationFrench;
+    } catch (e) {
+      log(`#${id} ⚠️ erreur régénération (tentative ${attempts}) : ${e.message}`, 'warn');
+      await sleep(1500);
+    }
+  }
+}
+
+// ── Actions manuelles (sur items rejetés) ──────────
+function manualApprove(id) {
+  const item = itemsById[id];
+  if (!item) return;
+  sanitizeItem(item);
+  item.regenerated = !!item.regenerated;
+  registerInStore(item);
+  saveValidated(item);
+  updateDicteeStatus(id, 'approved');
+  stats.rejected--;
+  stats.approved++;
+  setFeedStatus(item, 'approved');
+  updateStatsUI();
+  log(`#${id} ✅ validée manuellement (filtre ignoré sur demande).`, 'ok');
+}
+
+function manualRegenerate(id) {
+  const item = itemsById[id];
+  if (!item) return;
+  stats.rejected--;
+  stats.pending++;
+  updateStatsUI();
+  // Appel direct de processItem (sans passer par handleIncomingItem)
+  // pour éviter tout double-traitement via seenIds.
+  processItem(id).catch(e => log(`#${id} ⚠️ erreur régénération manuelle : ${e.message}`, 'err'));
+}
+
+function manualReject(id) {
+  const item = itemsById[id];
+  if (!item) return;
+  updateDicteeStatus(id, 'rejected');
+  setFeedStatus(item, 'rejected', ['Rejetée manuellement — exclue définitivement']);
+  log(`#${id} ❌ rejetée définitivement par l'utilisateur.`, 'err');
+}
+
+// ════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════
+(async function initFromStorage() {
+  const saved = localStorage.getItem(FIREBASE_CONFIG_KEY);
+  if (saved) {
+    DOM.firebaseConfig.value = saved;
+    await connectFirebase(true);
+  }
+})();
+updateStatsUI();
+</script>
+
+</body>
+</html>
