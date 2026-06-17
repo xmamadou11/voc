@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vocabulary JSON Merger</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    background: #0f0f11;
+    color: #e2e2e6;
+    min-height: 100vh;
+    padding: 24px 16px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  header h1 {
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: #fff;
+  }
+
+  header p {
+    font-family: system-ui, sans-serif;
+    font-size: 0.85rem;
+    color: #888;
+    margin-top: 6px;
+  }
+
+  .counter-bar {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  .stat {
+    background: #1a1a1f;
+    border: 1px solid #2a2a32;
+    border-radius: 8px;
+    padding: 10px 20px;
+    text-align: center;
+  }
+
+  .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #7c6fcd;
+  }
+
+  .stat-label {
+    font-size: 0.7rem;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-family: system-ui, sans-serif;
+    margin-top: 2px;
+  }
+
+  .drop-zone {
+    border: 2px dashed #2a2a32;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    transition: border-color 0.2s;
+    background: #13131a;
+  }
+
+  .drop-zone:focus-within {
+    border-color: #7c6fcd;
+  }
+
+  .drop-zone label {
+    display: block;
+    font-family: system-ui, sans-serif;
+    font-size: 0.75rem;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+
+  textarea {
+    width: 100%;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #c5c5e8;
+    font-family: inherit;
+    font-size: 0.78rem;
+    resize: vertical;
+    min-height: 120px;
+    line-height: 1.5;
+  }
+
+  textarea::placeholder {
+    color: #333;
+  }
+
+  .actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+
+  button {
+    font-family: system-ui, sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+
+  button:active { transform: scale(0.97); }
+  button:disabled { opacity: 0.3; cursor: default; }
+
+  .btn-add {
+    background: #7c6fcd;
+    color: #fff;
+  }
+
+  .btn-add:hover:not(:disabled) { opacity: 0.85; }
+
+  .btn-merge {
+    background: #2ea86a;
+    color: #fff;
+  }
+
+  .btn-merge:hover:not(:disabled) { opacity: 0.85; }
+
+  .btn-clear {
+    background: #2a2a32;
+    color: #aaa;
+  }
+
+  .btn-clear:hover { background: #333; color: #fff; }
+
+  .btn-download {
+    background: #1a6fa8;
+    color: #fff;
+  }
+
+  .btn-download:hover:not(:disabled) { opacity: 0.85; }
+
+  .chunks-list {
+    margin-bottom: 24px;
+  }
+
+  .chunks-list h2 {
+    font-family: system-ui, sans-serif;
+    font-size: 0.75rem;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+
+  .chunk-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: #1a1a1f;
+    border: 1px solid #2a2a32;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    font-size: 0.8rem;
+  }
+
+  .chunk-badge {
+    background: #7c6fcd22;
+    color: #9d91e0;
+    border: 1px solid #7c6fcd44;
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-size: 0.72rem;
+    white-space: nowrap;
+  }
+
+  .chunk-info {
+    flex: 1;
+    color: #888;
+    font-family: system-ui, sans-serif;
+  }
+
+  .chunk-remove {
+    background: none;
+    border: 1px solid #333;
+    border-radius: 4px;
+    color: #555;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .chunk-remove:hover {
+    border-color: #e05555;
+    color: #e05555;
+    background: #e0555511;
+    transform: none;
+  }
+
+  .result-section {
+    display: none;
+  }
+
+  .result-section.visible {
+    display: block;
+  }
+
+  .result-section h2 {
+    font-family: system-ui, sans-serif;
+    font-size: 0.75rem;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+
+  .result-box {
+    background: #13131a;
+    border: 1px solid #2a2a32;
+    border-radius: 10px;
+    padding: 16px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .result-box pre {
+    font-size: 0.75rem;
+    line-height: 1.6;
+    color: #8ab4f8;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .error-msg {
+    background: #e0555511;
+    border: 1px solid #e0555533;
+    border-radius: 6px;
+    padding: 10px 14px;
+    color: #e07777;
+    font-family: system-ui, sans-serif;
+    font-size: 0.82rem;
+    margin-bottom: 12px;
+    display: none;
+  }
+
+  .error-msg.visible { display: block; }
+
+  .success-msg {
+    background: #2ea86a11;
+    border: 1px solid #2ea86a33;
+    border-radius: 6px;
+    padding: 10px 14px;
+    color: #4cc98a;
+    font-family: system-ui, sans-serif;
+    font-size: 0.82rem;
+    margin-bottom: 12px;
+    display: none;
+  }
+
+  .success-msg.visible { display: block; }
+
+  .hint {
+    font-family: system-ui, sans-serif;
+    font-size: 0.75rem;
+    color: #444;
+    text-align: center;
+    margin-top: 20px;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🗂 Vocabulary JSON Merger</h1>
+  <p>Colle tes lots de 200 mots un par un → fusionne tout en un seul fichier</p>
+</header>
+
+<div class="counter-bar">
+  <div class="stat">
+    <div class="stat-value" id="countChunks">0</div>
+    <div class="stat-label">Lots collés</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value" id="countWords">0</div>
+    <div class="stat-label">Mots total</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value" id="countExpected">10 825</div>
+    <div class="stat-label">Mots attendus</div>
+  </div>
+</div>
+
+<div id="errorMsg" class="error-msg"></div>
+<div id="successMsg" class="success-msg"></div>
+
+<div class="drop-zone">
+  <label>Colle un lot JSON ici (un bloc de ~200 mots)</label>
+  <textarea id="pasteArea" placeholder='[&#10;  { "id": 1, "word": "a", ... },&#10;  { "id": 2, "word": "abandon", ... },&#10;  ...&#10;]'></textarea>
+</div>
+
+<div class="actions">
+  <button class="btn-add" onclick="addChunk()">＋ Ajouter ce lot</button>
+  <button class="btn-merge" id="btnMerge" onclick="mergeAll()" disabled>⚡ Fusionner tout</button>
+  <button class="btn-download" id="btnDownload" onclick="downloadJSON()" disabled>⬇ Télécharger JSON</button>
+  <button class="btn-clear" onclick="clearAll()">✕ Tout effacer</button>
+</div>
+
+<div class="chunks-list">
+  <h2>Lots ajoutés</h2>
+  <div id="chunksList"><span style="color:#444;font-family:system-ui,sans-serif;font-size:0.8rem;">Aucun lot encore</span></div>
+</div>
+
+<div class="result-section" id="resultSection">
+  <h2>Résultat fusionné — <span id="resultCount">0</span> mots</h2>
+  <div class="result-box">
+    <pre id="resultPreview"></pre>
+  </div>
+</div>
+
+<p class="hint">Pas besoin d'appuyer sur un bouton entre chaque lot.<br>Colle → Ajouter → Colle suivant → Ajouter → ... → Fusionner à la fin.</p>
+
+<script>
+  let chunks = [];
+  let mergedData = null;
+
+  function showError(msg) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = msg;
+    el.classList.add('visible');
+    setTimeout(() => el.classList.remove('visible'), 4000);
+  }
+
+  function showSuccess(msg) {
+    const el = document.getElementById('successMsg');
+    el.textContent = msg;
+    el.classList.add('visible');
+    setTimeout(() => el.classList.remove('visible'), 3000);
+  }
+
+  function updateStats() {
+    const totalWords = chunks.reduce((s, c) => s + c.length, 0);
+    document.getElementById('countChunks').textContent = chunks.length;
+    document.getElementById('countWords').textContent = totalWords.toLocaleString('fr');
+    document.getElementById('btnMerge').disabled = chunks.length === 0;
+  }
+
+  function renderChunksList() {
+    const container = document.getElementById('chunksList');
+    if (chunks.length === 0) {
+      container.innerHTML = '<span style="color:#444;font-family:system-ui,sans-serif;font-size:0.8rem;">Aucun lot encore</span>';
+      return;
+    }
+    container.innerHTML = chunks.map((chunk, i) => {
+      const first = chunk[0]?.word || '?';
+      const last = chunk[chunk.length - 1]?.word || '?';
+      const ids = `#${chunk[0]?.id}–${chunk[chunk.length-1]?.id}`;
+      return `
+        <div class="chunk-item">
+          <span class="chunk-badge">Lot ${i+1}</span>
+          <span class="chunk-info">${chunk.length} mots · "${first}" → "${last}" · IDs ${ids}</span>
+          <button class="chunk-remove" onclick="removeChunk(${i})">retirer</button>
+        </div>`;
+    }).join('');
+  }
+
+  function addChunk() {
+    const raw = document.getElementById('pasteArea').value.trim();
+    if (!raw) { showError('Zone vide — colle un bloc JSON d\'abord.'); return; }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch(e) {
+      showError('JSON invalide : ' + e.message);
+      return;
+    }
+
+    if (!Array.isArray(parsed)) {
+      showError('Le JSON doit être un tableau [ ... ]');
+      return;
+    }
+
+    if (parsed.length === 0) {
+      showError('Le tableau est vide.');
+      return;
+    }
+
+    chunks.push(parsed);
+    document.getElementById('pasteArea').value = '';
+    document.getElementById('resultSection').classList.remove('visible');
+    document.getElementById('btnDownload').disabled = true;
+    mergedData = null;
+    updateStats();
+    renderChunksList();
+    showSuccess(`Lot ${chunks.length} ajouté — ${parsed.length} mots (${parsed[0]?.word} → ${parsed[parsed.length-1]?.word})`);
+    document.getElementById('pasteArea').focus();
+  }
+
+  function removeChunk(index) {
+    chunks.splice(index, 1);
+    mergedData = null;
+    document.getElementById('resultSection').classList.remove('visible');
+    document.getElementById('btnDownload').disabled = true;
+    updateStats();
+    renderChunksList();
+  }
+
+  function mergeAll() {
+    if (chunks.length === 0) return;
+
+    // Flatten and deduplicate by id
+    const allMap = new Map();
+    for (const chunk of chunks) {
+      for (const word of chunk) {
+        allMap.set(word.id, word);
+      }
+    }
+
+    mergedData = Array.from(allMap.values()).sort((a, b) => a.id - b.id);
+
+    const preview = JSON.stringify(mergedData.slice(0, 3), null, 2) + '\n  ... (' + mergedData.length + ' mots au total)';
+    document.getElementById('resultPreview').textContent = preview;
+    document.getElementById('resultCount').textContent = mergedData.length.toLocaleString('fr');
+    document.getElementById('resultSection').classList.add('visible');
+    document.getElementById('btnDownload').disabled = false;
+
+    showSuccess(`✓ Fusion réussie — ${mergedData.length} mots uniques, IDs #${mergedData[0]?.id} → #${mergedData[mergedData.length-1]?.id}`);
+  }
+
+  function downloadJSON() {
+    if (!mergedData) return;
+    const blob = new Blob([JSON.stringify(mergedData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'vocabulary_merged.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function clearAll() {
+    if (chunks.length > 0 && !confirm('Effacer tous les lots ?')) return;
+    chunks = [];
+    mergedData = null;
+    document.getElementById('pasteArea').value = '';
+    document.getElementById('resultSection').classList.remove('visible');
+    document.getElementById('btnDownload').disabled = true;
+    updateStats();
+    renderChunksList();
+  }
+
+  // Allow Ctrl+Enter in textarea to trigger Add
+  document.getElementById('pasteArea').addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') addChunk();
+  });
+</script>
+</body>
+</html>
