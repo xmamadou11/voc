@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enrichisseur de vocabulaire — base de données complète</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2e38;
+    --text: #e6e8eb;
+    --dim: #8b93a1;
+    --accent: #4f8cff;
+    --ok: #3ecf8e;
+    --warn: #f5a623;
+    --err: #ef5350;
+    --mono: 'SF Mono', 'JetBrains Mono', Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.5;
+  }
+  header {
+    padding: 28px 32px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 {
+    margin: 0 0 4px;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  header p { margin: 0; color: var(--dim); font-size: 13px; }
+  main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 28px 32px 80px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 22px;
+    margin-bottom: 18px;
+  }
+  .panel h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--dim);
+    margin: 0 0 14px;
+    font-weight: 600;
+  }
+  .panel.resume {
+    border-color: var(--accent);
+    background: #14202f;
+  }
+  .panel.resume h2 { color: var(--accent); }
+  label {
+    display: block;
+    font-size: 13px;
+    color: var(--dim);
+    margin-bottom: 6px;
+  }
+  input[type=text], input[type=password], input[type=number], select {
+    width: 100%;
+    background: #0d0f13;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 11px;
+    border-radius: 6px;
+    font-size: 13.5px;
+    font-family: var(--mono);
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  .row { display: flex; gap: 14px; margin-bottom: 14px; }
+  .row > div { flex: 1; }
+  .row:last-child { margin-bottom: 0; }
+  input[type=file] { font-size: 13px; color: var(--dim); }
+  .btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 6px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:disabled { background: #333944; color: var(--dim); cursor: not-allowed; }
+  .btn.secondary { background: #262b35; color: var(--text); }
+  .btn.stop { background: var(--err); }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  .status-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .stat {
+    background: #0d0f13;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .stat .n { font-family: var(--mono); font-size: 18px; font-weight: 600; }
+  .stat .l { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat.ok .n { color: var(--ok); }
+  .stat.err .n { color: var(--err); }
+  .bar-wrap {
+    height: 8px;
+    background: #0d0f13;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 14px;
+    border: 1px solid var(--border);
+  }
+  .bar { height: 100%; background: var(--accent); width: 0%; transition: width .2s; }
+  #log {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--dim);
+    background: #0d0f13;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    height: 160px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+  }
+  .log-line.err { color: var(--err); }
+  .log-line.ok { color: var(--ok); }
+  .hint { font-size: 12px; color: var(--dim); margin-top: 8px; }
+  .hint a { color: var(--accent); }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: #262b35;
+    color: var(--dim);
+    font-family: var(--mono);
+    margin-right: 8px;
+  }
+  .badge.accent { background: rgba(79,140,255,0.15); color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Enrichisseur de vocabulaire</h1>
+  <p>Transforme vocabulary.json en base de données lexicale complète (définition anglaise, nature grammaticale, sens multiples, formes verbales, registre, domaine, expressions dérivées...) via l'API Google Gemini — tourne entièrement dans ce navigateur, rien n'est envoyé ailleurs qu'à Google. La progression est sauvegardée automatiquement dans ce navigateur (IndexedDB).</p>
+</header>
+
+<main>
+  <div class="panel resume" id="resumeBanner" style="display:none;">
+    <h2>Reprise automatique disponible</h2>
+    <p id="resumeText" style="margin:0 0 12px; font-size:13.5px;"></p>
+    <div class="actions" style="margin-top:0;">
+      <button class="btn" id="resumeLoadBtn">Reprendre cette sauvegarde</button>
+      <button class="btn secondary" id="resumeDismissBtn">Ignorer</button>
+      <button class="btn stop" id="resumeClearBtn">Effacer la sauvegarde</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>1 · Clé API &amp; modèle (Google Gemini)</h2>
+    <div class="row">
+      <div>
+        <label for="apiKey">Clé API Google Gemini</label>
+        <input type="password" id="apiKey" placeholder="AIza...">
+      </div>
+      <div>
+        <label for="model">Modèle</label>
+        <select id="model">
+          <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+          <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
+          <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite</option>
+          <option value="gemini-3.5-flash">gemini-3.5-flash</option>
+        </select>
+      </div>
+    </div>
+    <div class="actions" style="margin-top:0;">
+      <button class="btn secondary" id="loadModelsBtn" type="button">Charger mes modèles</button>
+      <span class="badge" id="modelsBadge" style="display:none;"></span>
+    </div>
+    <div class="hint">Clé gratuite sur <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> — jamais stockée (pas de localStorage). Clique "Charger mes modèles" pour remplacer la liste ci-dessus par les modèles réellement disponibles pour ta clé. Pour 10 825 mots, un modèle rapide et économique (variante <em>flash</em> ou <em>flash-lite</em>) est recommandé ; vérifie les tarifs actuels sur <a href="https://ai.google.dev/pricing" target="_blank">ai.google.dev/pricing</a> avant de lancer un run complet.</div>
+  </div>
+
+  <div class="panel">
+    <h2>2 · Fichiers</h2>
+    <div class="row">
+      <div>
+        <label for="srcFile">vocabulary.json (source)</label>
+        <input type="file" id="srcFile" accept="application/json">
+      </div>
+      <div>
+        <label for="resumeFile">Fichier de progression (optionnel — pour reprendre depuis un export)</label>
+        <input type="file" id="resumeFile" accept="application/json">
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>3 · Paramètres de traitement</h2>
+    <div class="row">
+      <div>
+        <label for="concurrency">Requêtes en parallèle</label>
+        <input type="number" id="concurrency" value="2" min="1" max="15">
+      </div>
+      <div>
+        <label for="startId">Traiter à partir de l'id</label>
+        <input type="number" id="startId" value="1" min="1">
+      </div>
+      <div>
+        <label for="endId">Traiter jusqu'à l'id</label>
+        <input type="number" id="endId" placeholder="dernier mot par défaut">
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label for="minGap">Délai mini entre requêtes (ms)</label>
+        <input type="number" id="minGap" value="1200" min="0" step="100">
+      </div>
+    </div>
+    <div class="hint">En cas d'erreurs 429 répétées, baisse "Requêtes en parallèle" à 1-2 et augmente ce délai (ex : 3000-4000 ms) — le quota gratuit de Gemini est très restreint (souvent 10-15 requêtes/min).</div>
+    <div class="actions">
+      <button class="btn" id="startBtn">Lancer l'enrichissement</button>
+      <button class="btn stop" id="stopBtn" disabled>Arrêter</button>
+      <button class="btn secondary" id="downloadBtn" disabled>Télécharger le résultat (JSON)</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>4 · Quota gratuit &amp; arrêt automatique</h2>
+    <div class="row">
+      <div>
+        <label for="dailyLimit">Requêtes max / jour (RPD du tier gratuit)</label>
+        <input type="number" id="dailyLimit" value="250" min="1">
+      </div>
+      <div>
+        <label for="safetyMargin">Marge de sécurité (requêtes gardées en réserve)</label>
+        <input type="number" id="safetyMargin" value="5" min="0">
+      </div>
+    </div>
+    <div class="hint">Le quota gratuit réel dépend du modèle choisi et change régulièrement côté Google (souvent entre 100 et 1500 requêtes/jour selon le modèle) — vérifie le tien sur <a href="https://aistudio.google.com/usage" target="_blank">aistudio.google.com/usage</a> avant de lancer un run, puis ajuste la valeur ci-dessus. Le compteur suit tes requêtes envoyées depuis ce navigateur aujourd'hui (réinitialisé à minuit heure Pacifique, comme le quota Google) et l'enrichissement s'arrête automatiquement avant d'atteindre la limite pour ne jamais basculer en facturation.</div>
+    <div class="bar-wrap"><div class="bar" id="quotaBar"></div></div>
+    <div style="margin-top:10px;">
+      <span class="badge accent" id="quotaBadge">0 / 250 requêtes aujourd'hui</span>
+      <button class="btn secondary" id="resetQuotaBtn" type="button" style="margin-left:8px; padding:4px 10px; font-size:12px;">Réinitialiser le compteur</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Progression</h2>
+    <div class="status-grid">
+      <div class="stat"><div class="n" id="statTotal">0</div><div class="l">Total</div></div>
+      <div class="stat ok"><div class="n" id="statDone">0</div><div class="l">Enrichis</div></div>
+      <div class="stat err"><div class="n" id="statErr">0</div><div class="l">Échecs</div></div>
+      <div class="stat"><div class="n" id="statRate">—</div><div class="l">Mots / min</div></div>
+    </div>
+    <div class="bar-wrap"><div class="bar" id="bar"></div></div>
+    <div style="margin-top:14px;">
+      <span class="badge" id="etaBadge">ETA —</span>
+      <span class="badge accent" id="autosaveBadge">Sauvegarde auto : —</span>
+    </div>
+    <div style="margin-top:14px;" id="log"></div>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let sourceWords = [];
+let results = new Map();   // id -> enriched object
+let failed = new Set();    // ids that failed
+let running = false;
+let startTime = null;
+let dirtySinceSave = false;
+let saveInFlight = false;
+
+// ---------- Throttle global (espacement des requêtes + cooldown sur 429) ----------
+let slotChain = Promise.resolve();
+let lastSlotTime = 0;
+let globalCooldownUntil = 0;
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Garantit un écart minimum entre le DÉBUT de chaque requête, tous workers confondus.
+function acquireSlot() {
+  const gap = Math.max(0, parseInt($('minGap').value) || 0);
+  slotChain = slotChain.then(async () => {
+    const wait = Math.max(0, lastSlotTime + gap - Date.now());
+    if (wait > 0) await sleep(wait);
+    lastSlotTime = Date.now();
+  });
+  return slotChain;
+}
+
+// Si un 429/503 a été reçu récemment, tout le monde attend avant de retenter.
+async function respectGlobalCooldown() {
+  while (Date.now() < globalCooldownUntil) {
+    await sleep(globalCooldownUntil - Date.now() + 50);
+  }
+}
+
+// Déclenche un cooldown global (honoré par tous les workers), basé sur Retry-After si dispo.
+function triggerCooldown(retryAfterSeconds, attempt) {
+  const backoff = retryAfterSeconds != null
+    ? retryAfterSeconds * 1000
+    : Math.min(60000, 3000 * Math.pow(2, attempt)) + Math.random() * 500;
+  const until = Date.now() + backoff;
+  if (until > globalCooldownUntil) globalCooldownUntil = until;
+  return backoff;
+}
+
+// ---------- IndexedDB autosave ----------
+const IDB_NAME = 'vocab-enrichisseur-db';
+const IDB_STORE = 'progress';
+const IDB_KEY = 'current';
+
+function idbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(IDB_STORE)) {
+        req.result.createObjectStore(IDB_STORE);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbSet(key, value) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function idbGet(key) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    const req = tx.objectStore(IDB_STORE).get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbDelete(key) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function autosaveNow(force) {
+  if (saveInFlight) return;
+  if (!force && !dirtySinceSave) return;
+  if (results.size === 0) return;
+  saveInFlight = true;
+  try {
+    const payload = {
+      results: Array.from(results.values()),
+      failed: Array.from(failed),
+      total: sourceWords.length,
+      savedAt: Date.now()
+    };
+    await idbSet(IDB_KEY, payload);
+    dirtySinceSave = false;
+    $('autosaveBadge').textContent = `Sauvegarde auto : ${new Date().toLocaleTimeString()}`;
+  } catch (e) {
+    log(`Échec de la sauvegarde automatique : ${e.message}`, 'err');
+  } finally {
+    saveInFlight = false;
+  }
+}
+
+setInterval(() => autosaveNow(false), 15000);
+window.addEventListener('beforeunload', () => { autosaveNow(true); });
+
+async function checkForAutosave() {
+  try {
+    const saved = await idbGet(IDB_KEY);
+    if (saved && Array.isArray(saved.results) && saved.results.length) {
+      const date = new Date(saved.savedAt).toLocaleString();
+      $('resumeText').textContent = `${saved.results.length} mots déjà enrichis trouvés dans ce navigateur (sur ${saved.total || '?'} au total), sauvegardés le ${date}. Charge d'abord vocabulary.json ci-dessous, puis reprends la sauvegarde pour sauter ces mots.`;
+      $('resumeBanner').style.display = '';
+    }
+  } catch (e) {
+    // IndexedDB indisponible (mode privé strict, etc.) — pas bloquant
+  }
+}
+
+$('resumeLoadBtn').addEventListener('click', async () => {
+  const saved = await idbGet(IDB_KEY);
+  if (!saved) return;
+  saved.results.forEach(w => results.set(w.id, normalizeEntry(w, w.id)));
+  (saved.failed || []).forEach(id => failed.add(id));
+  log(`Sauvegarde automatique chargée : ${saved.results.length} mots déjà enrichis seront sautés`, 'ok');
+  $('resumeBanner').style.display = 'none';
+  updateStats();
+});
+
+$('resumeDismissBtn').addEventListener('click', () => {
+  $('resumeBanner').style.display = 'none';
+});
+
+$('resumeClearBtn').addEventListener('click', async () => {
+  if (!confirm('Effacer définitivement la sauvegarde automatique de ce navigateur ?')) return;
+  await idbDelete(IDB_KEY);
+  $('resumeBanner').style.display = 'none';
+  log('Sauvegarde automatique effacée.');
+});
+
+checkForAutosave();
+
+// ---------- Suivi du quota gratuit quotidien ----------
+const DAILY_KEY = 'dailyUsage';
+let dailyUsage = { date: null, count: 0 };
+let quotaStopLogged = false;
+
+function getPacificDateString() {
+  // Aligné sur le reset des quotas Google (minuit heure Pacifique)
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+
+async function loadDailyUsage() {
+  const today = getPacificDateString();
+  try {
+    const saved = await idbGet(DAILY_KEY);
+    dailyUsage = (saved && saved.date === today) ? saved : { date: today, count: 0 };
+  } catch (e) {
+    dailyUsage = { date: today, count: 0 };
+  }
+  updateQuotaUI();
+}
+
+async function incrementDailyUsage() {
+  const today = getPacificDateString();
+  if (dailyUsage.date !== today) dailyUsage = { date: today, count: 0 };
+  dailyUsage.count += 1;
+  updateQuotaUI();
+  try { await idbSet(DAILY_KEY, dailyUsage); } catch (e) { /* pas bloquant */ }
+}
+
+function quotaLimit() {
+  return Math.max(1, parseInt($('dailyLimit').value) || 250);
+}
+
+function quotaExceeded() {
+  const margin = Math.max(0, parseInt($('safetyMargin').value) || 0);
+  const today = getPacificDateString();
+  if (dailyUsage.date !== today) return false; // nouveau jour = quota Google déjà remis à zéro
+  return dailyUsage.count >= (quotaLimit() - margin);
+}
+
+function updateQuotaUI() {
+  const limit = quotaLimit();
+  const today = getPacificDateString();
+  const count = dailyUsage.date === today ? dailyUsage.count : 0;
+  const pct = Math.min(100, (count / limit) * 100);
+  const bar = $('quotaBar');
+  bar.style.width = pct + '%';
+  bar.style.background = pct >= 90 ? 'var(--err)' : (pct >= 70 ? 'var(--warn)' : 'var(--ok)');
+  $('quotaBadge').textContent = `${count} / ${limit} requêtes aujourd'hui`;
+}
+
+$('dailyLimit').addEventListener('input', updateQuotaUI);
+
+$('resetQuotaBtn').addEventListener('click', async () => {
+  if (!confirm('Réinitialiser le compteur de requêtes du jour ? À faire seulement si le quota Google a réellement été remis à zéro (nouveau jour, ou changement de clé API).')) return;
+  dailyUsage = { date: getPacificDateString(), count: 0 };
+  await idbSet(DAILY_KEY, dailyUsage);
+  quotaStopLogged = false;
+  updateQuotaUI();
+  log('Compteur de quota quotidien réinitialisé manuellement.');
+});
+
+loadDailyUsage();
+
+// ---------- UI helpers ----------
+function log(msg, cls) {
+  const el = $('log');
+  const line = document.createElement('div');
+  line.className = 'log-line' + (cls ? ' ' + cls : '');
+  line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function updateStats() {
+  const total = sourceWords.length;
+  const done = results.size;
+  const err = failed.size;
+  $('statTotal').textContent = total;
+  $('statDone').textContent = done;
+  $('statErr').textContent = err;
+  $('bar').style.width = total ? `${(done / total) * 100}%` : '0%';
+  if (startTime && done > 0) {
+    const elapsedMin = (Date.now() - startTime) / 60000;
+    const rate = done / elapsedMin;
+    $('statRate').textContent = rate.toFixed(1);
+    const remaining = total - done - err;
+    const etaMin = remaining / rate;
+    $('etaBadge').textContent = remaining > 0 && rate > 0
+      ? `ETA ~${etaMin < 1 ? '<1' : Math.round(etaMin)} min`
+      : 'Terminé';
+  }
+  $('downloadBtn').disabled = done === 0;
+}
+
+$('srcFile').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  sourceWords = JSON.parse(text);
+  log(`Chargé : ${sourceWords.length} mots depuis ${file.name}`, 'ok');
+  $('endId').placeholder = sourceWords[sourceWords.length - 1].id;
+  updateStats();
+});
+
+$('resumeFile').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  const prev = JSON.parse(text);
+  const arr = Array.isArray(prev) ? prev : prev.words || [];
+  arr.forEach(w => results.set(w.id, normalizeEntry(w, w.id)));
+  log(`Progression reprise depuis fichier : ${arr.length} mots déjà enrichis seront sautés`, 'ok');
+  updateStats();
+});
+
+function buildPrompt(entry) {
+  return `Tu es lexicographe spécialisé dans l'anglais pour francophones de niveau C1. Pour le mot anglais suivant, complète une fiche lexicale complète et rigoureuse. L'apprenant vise l'autonomie : il doit pouvoir penser directement en anglais, donc la définition doit être en anglais simple, pas seulement traduite.
+
+Mot : "${entry.word}"
+Prononciation IPA connue : ${entry.phonetic}
+Niveau CECRL connu : ${entry.level}
+Traduction connue : ${entry.translation}
+Exemple existant (EN) : ${entry.exampleEnglish}
+Exemple existant (FR) : ${entry.exampleFrench}
+
+Réponds UNIQUEMENT avec un objet JSON valide (aucun texte avant/après, pas de balises markdown), avec exactement ces clés :
+
+{
+  "word": "${entry.word}",
+  "phonetic": "prononciation IPA AMÉRICAINE (General American) uniquement — jamais britannique, reprends ou corrige celle donnée",
+  "partOfSpeech": "un seul de : noun|verb|adjective|adverb|preposition|conjunction|pronoun|determiner|interjection — choisis le sens le plus courant si plusieurs sont possibles",
+  "level": "niveau CECRL A1|A2|B1|B2|C1|C2, reprends ou corrige",
+  "translation": "traduction(s) française(s) la/les plus naturelle(s)",
+  "definition": "définition simple et courte du sens principal, EN ANGLAIS, style dictionnaire pour apprenant (pas de mots trop rares dans la définition elle-même)",
+  "register": "un seul de : formal|neutral|informal|slang|academic|business — registre d'usage dominant",
+  "domain": ["domaine(s) spécifique(s) si le mot est technique/spécialisé, ex: 'business','medicine','technology','law','science','travel' — tableau VIDE [] si mot du vocabulaire général sans domaine particulier"],
+  "frequency": "note de 1 à 5 (entier) représentant la fréquence d'usage en anglais courant, 5 = extrêmement fréquent",
+  "frequencyBand": "un seul de : Top 500|Top 1000|Top 3000|Top 5000|Rare — estimation de la tranche de fréquence en anglais courant",
+  "verbForms": "si partOfSpeech est 'verb' : objet {\"base\":\"...\",\"thirdPerson\":\"...\",\"ing\":\"...\",\"past\":\"...\",\"pastParticiple\":\"...\"} avec les formes réelles (irrégulières si applicable) — sinon null",
+  "senses": [
+    {
+      "meaning": "courte étiquette du sens en français, ex: 'sens principal', 'sens figuré', 'familier'",
+      "definition": "définition en anglais de CE sens précis",
+      "translation": "traduction française de CE sens précis",
+      "examples": [{"en": "phrase anglaise naturelle", "fr": "traduction française naturelle"}]
+    }
+  ],
+  "examples": [
+    {"en": "phrase anglaise naturelle illustrant le sens principal", "fr": "traduction française naturelle"},
+    {"en": "...", "fr": "..."},
+    {"en": "...", "fr": "..."}
+  ],
+  "collocations": ["combinaisons de mots fréquentes avec ce mot, ex: make a decision"],
+  "phrasalVerbs": ["verbes à particule associés si le mot est un verbe ou en dérive, sinon tableau vide []"],
+  "expressions": ["expressions ou locutions dérivées contenant ce mot, ex pour 'hand' : 'hand in', 'hand over', 'on the other hand', 'second-hand' — tableau vide [] si aucune notable"],
+  "synonyms": ["synonymes anglais courants"],
+  "antonyms": ["antonymes anglais courants, tableau vide si non pertinent"],
+  "wordFamily": ["mots de la même famille : noms, adjectifs, verbes, adverbes dérivés"],
+  "prepositions": ["prépositions associées si pertinent, ex: 'depend ON', 'good AT', sinon tableau vide"],
+  "frequentErrors": "1-2 phrases en français décrivant les erreurs fréquentes des francophones avec ce mot (faux-amis, ordre des mots, préposition, prononciation...). Si aucune erreur notable, dis-le explicitement."
+}
+
+Règles :
+- Si le mot n'a qu'un seul sens courant, "senses" contient un seul élément identique au sens principal.
+- Si le mot est polysémique (ex: "run"), donne 2 à 4 sens distincts et représentatifs dans "senses", chacun avec ses propres exemples.
+- "verbForms" doit être littéralement null (pas un objet vide) si le mot n'est pas un verbe.
+- Sois naturel, concis, pédagogique. N'invente pas de faits erronés, notamment pas de formes verbales inventées.
+- 3 exemples minimum dans "examples", variés en contexte.`;
+}
+
+
+// ---------- Chargement dynamique des modèles ----------
+async function loadModels() {
+  const apiKey = $('apiKey').value.trim();
+  if (!apiKey) { alert('Entre d\'abord ta clé API Gemini'); return; }
+
+  const btn = $('loadModelsBtn');
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = 'Chargement...';
+  $('modelsBadge').style.display = 'none';
+
+  try {
+    let allModels = [];
+    let pageToken = '';
+    do {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}&pageSize=1000${pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''}`;
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error(`HTTP ${resp.status}: ${errText.slice(0, 150)}`);
+      }
+      const data = await resp.json();
+      allModels = allModels.concat(data.models || []);
+      pageToken = data.nextPageToken || '';
+    } while (pageToken);
+
+    const usable = allModels
+      .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    if (!usable.length) {
+      log('Aucun modèle compatible generateContent trouvé pour cette clé.', 'err');
+      return;
+    }
+
+    const select = $('model');
+    const previousValue = select.value;
+    select.innerHTML = '';
+    usable.forEach(m => {
+      const id = m.name.replace(/^models\//, '');
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = m.displayName ? `${id} — ${m.displayName}` : id;
+      select.appendChild(opt);
+    });
+
+    const stillExists = usable.some(m => m.name.replace(/^models\//, '') === previousValue);
+    if (stillExists) {
+      select.value = previousValue;
+    } else {
+      const preferred = usable.find(m => /flash-lite/i.test(m.name) && !/preview|image|audio|tts|native/i.test(m.name))
+        || usable.find(m => /flash/i.test(m.name) && !/preview|image|audio|tts|native/i.test(m.name));
+      if (preferred) select.value = preferred.name.replace(/^models\//, '');
+    }
+
+    $('modelsBadge').textContent = `${usable.length} modèles chargés`;
+    $('modelsBadge').style.display = '';
+    log(`${usable.length} modèles compatibles chargés depuis ta clé API.`, 'ok');
+  } catch (e) {
+    log(`Échec du chargement des modèles : ${e.message}`, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
+
+$('loadModelsBtn').addEventListener('click', loadModels);
+
+// ---------- Ordre fixe des clés (id toujours en premier, champs groupés par mot) ----------
+function normalizeEntry(parsed, id) {
+  return {
+    id: id,
+    word: parsed.word ?? '',
+    phonetic: parsed.phonetic ?? '',
+    partOfSpeech: parsed.partOfSpeech ?? '',
+    level: parsed.level ?? '',
+    translation: parsed.translation ?? '',
+    definition: parsed.definition ?? '',
+    register: parsed.register ?? '',
+    domain: parsed.domain ?? [],
+    frequency: parsed.frequency ?? null,
+    frequencyBand: parsed.frequencyBand ?? '',
+    verbForms: parsed.verbForms ?? null,
+    senses: parsed.senses ?? [],
+    examples: parsed.examples ?? [],
+    collocations: parsed.collocations ?? [],
+    phrasalVerbs: parsed.phrasalVerbs ?? [],
+    expressions: parsed.expressions ?? [],
+    synonyms: parsed.synonyms ?? [],
+    antonyms: parsed.antonyms ?? [],
+    wordFamily: parsed.wordFamily ?? [],
+    prepositions: parsed.prepositions ?? [],
+    frequentErrors: parsed.frequentErrors ?? ''
+  };
+}
+
+// ---------- Google Gemini call ----------
+const MAX_ATTEMPTS = 7;
+
+async function enrichOne(entry, attempt = 1) {
+  const apiKey = $('apiKey').value.trim();
+  const model = $('model').value.trim();
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+  // Respecte un éventuel cooldown global (429 précédent), puis réserve un créneau espacé.
+  await respectGlobalCooldown();
+  await acquireSlot();
+
+  if (quotaExceeded()) {
+    throw new Error('Quota gratuit quotidien atteint — requête annulée.');
+  }
+
+  try {
+    await incrementDailyUsage(); // compte la requête juste avant de l'envoyer réellement
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: buildPrompt(entry) }] }],
+        generationConfig: {
+          temperature: 0.4,
+          responseMimeType: 'application/json'
+        }
+      })
+    });
+
+    if ((resp.status === 429 || resp.status === 503) && attempt <= MAX_ATTEMPTS) {
+      const retryAfterHeader = resp.headers.get('Retry-After');
+      const retryAfterSeconds = retryAfterHeader ? parseFloat(retryAfterHeader) : null;
+      const backoff = triggerCooldown(retryAfterSeconds, attempt);
+      log(`⏳ ${resp.status} sur "${entry.word}" — pause de ${Math.round(backoff / 1000)}s avant retry (tentative ${attempt}/${MAX_ATTEMPTS})`);
+      await respectGlobalCooldown();
+      return enrichOne(entry, attempt + 1);
+    }
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`HTTP ${resp.status}: ${errText.slice(0, 150)}`);
+    }
+    const data = await resp.json();
+    const candidate = data.candidates?.[0];
+    if (!candidate) {
+      const reason = data.promptFeedback?.blockReason || 'réponse vide';
+      throw new Error(`Pas de réponse (${reason})`);
+    }
+    let raw = candidate.content?.parts?.map(p => p.text || '').join('') || '';
+    raw = raw.trim().replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '').trim();
+    const parsed = JSON.parse(raw);
+    return normalizeEntry(parsed, entry.id);
+  } catch (e) {
+    if (attempt <= 2) {
+      await sleep(1500);
+      return enrichOne(entry, attempt + 1);
+    }
+    throw e;
+  }
+}
+
+async function worker(queue) {
+  while (queue.length && running) {
+    if (quotaExceeded()) {
+      if (!quotaStopLogged) {
+        quotaStopLogged = true;
+        running = false;
+        log(`⛔ Limite quotidienne gratuite atteinte (${dailyUsage.count}/${quotaLimit()} requêtes) — arrêt automatique pour rester dans le tier gratuit.`, 'err');
+        $('startBtn').disabled = false;
+        $('stopBtn').disabled = true;
+        await autosaveNow(true);
+      }
+      break;
+    }
+    const entry = queue.shift();
+    try {
+      const enriched = await enrichOne(entry);
+      results.set(entry.id, enriched);
+      failed.delete(entry.id);
+      log(`✓ ${entry.word}`, 'ok');
+    } catch (e) {
+      failed.add(entry.id);
+      log(`✗ ${entry.word} — ${e.message}`, 'err');
+    }
+    dirtySinceSave = true;
+    updateStats();
+  }
+}
+
+$('startBtn').addEventListener('click', async () => {
+  if (!sourceWords.length) { alert('Charge d\'abord vocabulary.json'); return; }
+  if (!$('apiKey').value.trim()) { alert('Entre ta clé API Google Gemini'); return; }
+
+  const startId = parseInt($('startId').value) || 1;
+  const endId = parseInt($('endId').value) || sourceWords[sourceWords.length - 1].id;
+  const toProcess = sourceWords.filter(w => w.id >= startId && w.id <= endId && !results.has(w.id));
+
+  if (!toProcess.length) { log('Rien à traiter dans cette plage (déjà enrichi ?).'); return; }
+
+  if (quotaExceeded()) {
+    alert(`Limite quotidienne gratuite déjà atteinte (${dailyUsage.count}/${quotaLimit()} requêtes aujourd'hui). Augmente la limite si tu es sûr d'avoir encore du quota, ou réessaie demain.`);
+    return;
+  }
+
+  running = true;
+  quotaStopLogged = false;
+  startTime = Date.now();
+  $('startBtn').disabled = true;
+  $('stopBtn').disabled = false;
+  globalCooldownUntil = 0;
+  log(`Démarrage : ${toProcess.length} mots à enrichir, ${$('concurrency').value} en parallèle, ${$('minGap').value}ms mini entre requêtes (Gemini · ${$('model').value.trim()})`);
+
+  const queue = [...toProcess];
+  const n = Math.max(1, Math.min(15, parseInt($('concurrency').value) || 5));
+  const workers = Array.from({ length: n }, () => worker(queue));
+  await Promise.all(workers);
+
+  running = false;
+  $('startBtn').disabled = false;
+  $('stopBtn').disabled = true;
+  await autosaveNow(true);
+  log(`Terminé. ${results.size} réussis, ${failed.size} échecs.`, failed.size ? 'err' : 'ok');
+});
+
+$('stopBtn').addEventListener('click', async () => {
+  running = false;
+  log('Arrêt demandé — les requêtes en cours se terminent. La progression est sauvegardée automatiquement.');
+  $('stopBtn').disabled = true;
+  $('startBtn').disabled = false;
+  await autosaveNow(true);
+});
+
+$('downloadBtn').addEventListener('click', () => {
+  const arr = Array.from(results.values()).sort((a, b) => a.id - b.id);
+  const blob = new Blob([JSON.stringify(arr, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const total = sourceWords.length || '?';
+  a.download = `vocabulary_enriched_${arr.length}_of_${total}.json`;
+  a.click();
+});
+</script>
+</body>
+</html>
