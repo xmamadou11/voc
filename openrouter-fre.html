@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tester mes modèles gratuits OpenRouter</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: #14171c;
+    --line: #232830;
+    --text: #e6e8eb;
+    --muted: #8a919c;
+    --accent: #5ee6a8;
+    --bad: #ff6b6b;
+    --warn: #e6c15e;
+    --mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    margin: 0;
+    padding: 32px 20px 60px;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  header { margin-bottom: 20px; }
+  .tag {
+    display: inline-block;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    padding: 2px 7px;
+    margin-bottom: 12px;
+  }
+  h1 { font-size: 21px; margin: 0 0 6px; font-weight: 600; letter-spacing: -0.01em; }
+  p.sub { color: var(--muted); font-size: 13px; margin: 0 0 4px; line-height: 1.5; }
+  .keybox {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 18px 0 8px;
+  }
+  .keybox label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 8px; }
+  .keyrow { display: flex; gap: 8px; }
+  input[type="password"], input[type="text"] {
+    flex: 1;
+    background: #0d0f13;
+    border: 1px solid var(--line);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  input:focus { outline: 1px solid var(--accent); }
+  button {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    color: var(--text);
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .note { font-size: 11px; color: var(--muted); margin-top: 8px; }
+  .bar { display: flex; gap: 10px; margin: 20px 0 6px; flex-wrap: wrap; }
+  .status { color: var(--muted); font-size: 12px; margin: 10px 0 18px; min-height: 16px; }
+  .status.err { color: var(--bad); }
+  .grid { display: flex; flex-direction: column; gap: 8px; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 13px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+  .card .name { font-size: 13.5px; font-weight: 600; }
+  .card .id { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+  .right { display: flex; align-items: center; gap: 10px; }
+  .result { font-size: 11.5px; min-width: 140px; text-align: right; }
+  .result.ok { color: var(--accent); }
+  .result.bad { color: var(--bad); }
+  .result.pending { color: var(--warn); }
+  .testbtn {
+    padding: 7px 12px;
+    font-size: 12px;
+  }
+  .empty { color: var(--muted); font-size: 13px; padding: 30px 0; text-align: center; }
+  .count { color: var(--accent); }
+  a.src { color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--line); }
+  a.src:hover { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="tag">FREE TIER · TEST EN DIRECT</div>
+    <h1>Tester mes modèles gratuits OpenRouter</h1>
+    <p class="sub">Votre clé reste dans votre navigateur : elle est envoyée uniquement à <a class="src" href="https://openrouter.ai" target="_blank">openrouter.ai</a> pour chaque test, jamais stockée ni transmise ailleurs.</p>
+  </header>
+
+  <div class="keybox">
+    <label>Clé API OpenRouter</label>
+    <div class="keyrow">
+      <input type="password" id="apikey" placeholder="sk-or-v1-...">
+      <button id="loadBtn">Charger mes modèles gratuits</button>
+    </div>
+    <div class="note">⚠️ Si c'est la clé que vous avez collée plus tôt dans ce chat, révoquez-la et utilisez-en une nouvelle : elle a été exposée.</div>
+  </div>
+
+  <div class="bar">
+    <input type="text" id="search" placeholder="Filtrer par nom..." disabled>
+    <button id="testAllBtn" disabled>Tester tout</button>
+  </div>
+  <div class="status" id="status">En attente de la clé...</div>
+
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" style="display:none;">Aucun modèle gratuit ne correspond à ce filtre.</div>
+</div>
+
+<script>
+let allFree = [];
+
+function fmtCtx(n) {
+  if (!n) return '—';
+  if (n >= 1000) return Math.round(n/1000) + 'K ctx';
+  return n + ' ctx';
+}
+
+function render(list) {
+  const grid = document.getElementById('grid');
+  const empty = document.getElementById('empty');
+  grid.innerHTML = '';
+  if (list.length === 0) { empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  for (const m of list) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.id = m.id;
+    card.innerHTML = `
+      <div>
+        <div class="name">${m.name || m.id}</div>
+        <div class="id">${m.id} · ${fmtCtx(m.context_length)}</div>
+      </div>
+      <div class="right">
+        <span class="result" id="result-${cssId(m.id)}"></span>
+        <button class="testbtn" onclick="testModel('${m.id}')">Tester</button>
+      </div>
+    `;
+    grid.appendChild(card);
+  }
+}
+
+function cssId(id) { return id.replace(/[^a-zA-Z0-9]/g, '_'); }
+
+function applyFilter() {
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const filtered = q
+    ? allFree.filter(m => (m.name || '').toLowerCase().includes(q) || m.id.toLowerCase().includes(q))
+    : allFree;
+  render(filtered);
+}
+
+async function loadModels() {
+  const key = document.getElementById('apikey').value.trim();
+  const status = document.getElementById('status');
+  if (!key) { status.className = 'status err'; status.textContent = 'Collez d\'abord votre clé API.'; return; }
+
+  status.className = 'status';
+  status.textContent = 'Chargement des modèles...';
+  document.getElementById('grid').innerHTML = '';
+
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/models', {
+      headers: { 'Authorization': 'Bearer ' + key }
+    });
+    if (res.status === 401) throw new Error('Clé invalide ou révoquée (401)');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const models = data.data || [];
+    allFree = models.filter(m => {
+      const p = m.pricing || {};
+      return parseFloat(p.prompt || '0') === 0 && parseFloat(p.completion || '0') === 0;
+    }).sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
+
+    status.innerHTML = `<span class="count">${allFree.length}</span> modèles gratuits disponibles pour cette clé.`;
+    document.getElementById('search').disabled = false;
+    document.getElementById('testAllBtn').disabled = false;
+    applyFilter();
+  } catch (err) {
+    status.className = 'status err';
+    status.textContent = 'Erreur : ' + err.message;
+  }
+}
+
+async function testModel(modelId) {
+  const key = document.getElementById('apikey').value.trim();
+  const elId = 'result-' + cssId(modelId);
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.className = 'result pending';
+  el.textContent = 'test en cours...';
+
+  const start = performance.now();
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + key,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: modelId,
+        messages: [{ role: 'user', content: 'Réponds uniquement par: ok' }],
+        max_tokens: 5
+      })
+    });
+    const elapsed = Math.round(performance.now() - start);
+    const data = await res.json();
+    if (!res.ok) {
+      const msg = (data.error && data.error.message) ? data.error.message : ('HTTP ' + res.status);
+      el.className = 'result bad';
+      el.textContent = '✗ ' + msg.slice(0, 40);
+      return;
+    }
+    const reply = data.choices && data.choices[0] && data.choices[0].message
+      ? data.choices[0].message.content : null;
+    el.className = 'result ok';
+    el.textContent = `✓ OK (${elapsed}ms)`;
+  } catch (err) {
+    el.className = 'result bad';
+    el.textContent = '✗ ' + err.message.slice(0, 40);
+  }
+}
+
+async function testAll() {
+  const cards = document.querySelectorAll('.card');
+  for (const card of cards) {
+    await testModel(card.dataset.id);
+  }
+}
+
+document.getElementById('loadBtn').addEventListener('click', loadModels);
+document.getElementById('search').addEventListener('input', applyFilter);
+document.getElementById('testAllBtn').addEventListener('click', testAll);
+document.getElementById('apikey').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') loadModels();
+});
+</script>
+</body>
+</html>
