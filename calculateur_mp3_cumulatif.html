@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculateur de taille MP3 (Multi-dossiers)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background-color: #fff;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+        h1 {
+            color: #2c3e50;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        p {
+            color: #7f8c8d;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .upload-btn-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        .btn {
+            border: 2px solid #3498db;
+            color: white;
+            background-color: #3498db;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+            border-color: #2980b9;
+        }
+        .btn-reset {
+            border: 2px solid #e74c3c;
+            color: white;
+            background-color: #e74c3c;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn-reset:hover {
+            background-color: #c0392b;
+            border-color: #c0392b;
+        }
+        .upload-btn-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+            height: 100%;
+        }
+        .result-box {
+            background-color: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .total-size {
+            font-size: 36px;
+            font-weight: bold;
+            color: #27ae60;
+            margin: 10px 0;
+        }
+        .details {
+            font-size: 14px;
+            color: #555;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Calculateur de taille des MP3</h1>
+    <p>Ajoutez des fichiers issus de plusieurs dossiers. Le poids total s'additionnera à chaque nouvel ajout.</p>
+    
+    <div class="button-group">
+        <div class="upload-btn-wrapper">
+            <button class="btn">+ Ajouter des fichiers</button>
+            <input type="file" id="fileInput" multiple webkitdirectory directory />
+        </div>
+        <button class="btn-reset" id="resetBtn">Réinitialiser</button>
+    </div>
+
+    <div class="result-box">
+        <div class="details" id="detailsText">Total cumulé : 0 fichier MP3</div>
+        <div class="total-size" id="resultText">0.0000 Go</div>
+    </div>
+</div>
+
+<script>
+    let totalBytes = 0;
+    let mp3Count = 0;
+
+    document.getElementById('fileInput').addEventListener('change', function(event) {
+        const files = event.target.files;
+
+        // Parcourir tous les fichiers sélectionnés et les AJOUTER au total
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            
+            if (file.name.toLowerCase().endsWith('.mp3') || file.type === 'audio/mpeg' || file.type === 'audio/mp3') {
+                totalBytes += file.size;
+                mp3Count++;
+            }
+        }
+
+        updateDisplay();
+        
+        // On vide l'input pour permettre à l'utilisateur de cliquer à nouveau et d'ajouter d'autres dossiers
+        event.target.value = '';
+    });
+
+    // Bouton pour tout remettre à zéro
+    document.getElementById('resetBtn').addEventListener('click', function() {
+        totalBytes = 0;
+        mp3Count = 0;
+        updateDisplay();
+    });
+
+    function updateDisplay() {
+        const totalGB = totalBytes / (1024 * 1024 * 1024);
+        document.getElementById('detailsText').innerText = "Total cumulé : " + mp3Count + " fichier(s) MP3";
+        document.getElementById('resultText').innerText = totalGB.toFixed(4) + " Go";
+    }
+</script>
+
+</body>
+</html>
