@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Générateur audio · Vocabulaire</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /*
+    Direction : console de mixage à deux canaux.
+    Chaque mot est une "prise" ; le canal Féminin (rose) et le canal Masculin (teal)
+    portent chacun leur moitié des pistes (Mot/Définition/Sens vs Exemples/Collocations/
+    Expressions/Phrasal verbs). Cette couleur de canal est réutilisée partout où le genre
+    de voix est pertinent — jamais en pure décoration.
+  */
+  :root{
+    --bg-0:#0a0f0d;
+    --bg-1:#0e1a17;
+    --panel:#f2eee1;
+    --panel-2:#fffdf7;
+    --line:#e2dcc9;
+    --ink:#14170f;
+    --ink-soft:#5b6058;
+    --rose:#b3405b;
+    --rose-dark:#8a2e46;
+    --rose-tint:#f7e8ec;
+    --teal:#1c7d6e;
+    --teal-dark:#124f45;
+    --teal-tint:#e6f1ee;
+    --amber:#dda23f;
+    --coral:#c1503f;
+    --ok:#33b06b;
+    --mono:'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    --display:'Space Grotesk', 'Inter', sans-serif;
+    --sans:'Inter', -apple-system, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{
+    font-family:var(--sans);
+    background:
+      radial-gradient(900px 420px at 12% -10%, #163329 0%, rgba(22,51,41,0) 62%),
+      repeating-linear-gradient(0deg, rgba(244,241,230,.035) 0px, rgba(244,241,230,.035) 1px, transparent 1px, transparent 26px),
+      repeating-linear-gradient(90deg, rgba(244,241,230,.035) 0px, rgba(244,241,230,.035) 1px, transparent 1px, transparent 26px),
+      var(--bg-0);
+    color:var(--ink);
+    min-height:100vh;
+    padding:0 0 100px;
+  }
+
+  header.hero{
+    padding:52px 20px 34px;
+    max-width:960px;
+    margin:0 auto;
+    color:#f0efe6;
+    position:relative;
+  }
+  header.hero .eyebrow{
+    font-family:var(--mono);
+    font-size:11.5px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--amber);
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:16px;
+  }
+  header.hero .eyebrow .dot{
+    width:7px; height:7px; border-radius:50%;
+    background:var(--coral);
+    box-shadow:0 0 0 3px rgba(193,80,63,.25);
+    animation:recPulse 2.2s ease-in-out infinite;
+  }
+  @keyframes recPulse{
+    0%,100%{opacity:1;}
+    50%{opacity:.35;}
+  }
+  header.hero h1{
+    font-family:var(--display);
+    font-weight:700;
+    font-size:clamp(28px, 4vw, 40px);
+    line-height:1.08;
+    letter-spacing:-0.015em;
+    margin:0 0 14px;
+  }
+  header.hero p{
+    font-size:15.5px;
+    line-height:1.6;
+    color:#b7c2ba;
+    max-width:56ch;
+    margin:0 0 26px;
+  }
+
+  /* signature: level meter — two rails (rose/teal) breathing behind the hero copy */
+  .vu{
+    display:flex; align-items:flex-end; gap:3px; height:34px;
+    margin-bottom:22px;
+  }
+  .vu i{
+    display:block; width:4px; border-radius:2px 2px 0 0;
+    background:linear-gradient(180deg, var(--teal), var(--rose));
+    opacity:.55;
+    animation:vuMove 2.4s ease-in-out infinite;
+    animation-delay:calc(var(--d) * 1s);
+  }
+  @media (prefers-reduced-motion: reduce){
+    .vu i{ animation:none; }
+  }
+  @keyframes vuMove{
+    0%,100%{ height:6px; }
+    50%{ height:var(--h); }
+  }
+
+  header.hero .chain{
+    display:flex; gap:0; flex-wrap:wrap;
+    border:1px solid rgba(255,255,255,.14);
+    border-radius:10px; overflow:hidden;
+  }
+  header.hero .chain span{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:.05em;
+    padding:8px 13px;
+    background:rgba(255,255,255,.03);
+    border-right:1px solid rgba(255,255,255,.12);
+    color:#cfd6cf;
+  }
+  header.hero .chain span:last-child{border-right:none;}
+  header.hero .chain span b{color:var(--amber); font-weight:500; margin-right:6px;}
+
+  .wrap{max-width:960px;margin:0 auto; padding:0 20px;}
+
+  section{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:26px 28px 28px;
+    margin-bottom:20px;
+    position:relative;
+    box-shadow:0 1px 2px rgba(20,20,15,.03), 0 8px 24px -18px rgba(20,20,15,.3);
+  }
+  .step-head{
+    display:flex; align-items:center; gap:13px;
+    margin-bottom:20px;
+  }
+  .step-num{
+    flex:0 0 auto;
+    width:30px; height:30px; border-radius:7px;
+    background:var(--bg-1); color:#d8ecd6;
+    font-family:var(--mono); font-size:12px; font-weight:600;
+    display:flex; align-items:center; justify-content:center;
+  }
+  h2{
+    font-family:var(--display);
+    font-size:18.5px;
+    font-weight:700;
+    margin:0;
+    letter-spacing:-0.005em;
+  }
+  h2 small{
+    display:block;
+    font-family:var(--sans); font-weight:500; font-size:12.5px;
+    color:var(--ink-soft); margin-top:2px; letter-spacing:0;
+  }
+
+  label{
+    display:block;
+    font-family:var(--mono);
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:.07em;
+    color:#7a7264;
+    margin:16px 0 6px;
+    font-weight:600;
+  }
+  label:first-of-type{margin-top:0;}
+
+  input[type=text], input[type=password], input[type=number], select{
+    width:100%;
+    padding:11px 12px;
+    border:1.5px solid #dcd6c5;
+    background:#fffefb;
+    font-family:var(--sans);
+    font-size:14px;
+    border-radius:8px;
+    color:var(--ink);
+    transition:border-color .15s, box-shadow .15s;
+  }
+  input:focus, select:focus{
+    outline:none;
+    border-color:var(--teal);
+    box-shadow:0 0 0 3px rgba(28,125,110,.14);
+  }
+  select{
+    -webkit-appearance:none; appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235c6169' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
+    background-repeat:no-repeat;
+    background-position:right 12px center;
+    background-size:16px;
+    padding-right:36px;
+  }
+  input[type=file]{
+    width:100%;
+    font-family:var(--sans);
+    font-size:13px;
+    padding:10px;
+    border:1.5px dashed #cfc7b3;
+    border-radius:8px;
+    background:#fbf9f3;
+    color:var(--ink-soft);
+  }
+
+  .row{display:flex; gap:16px;}
+  .row > div{flex:1;}
+
+  /* ---- channel strips (voice section) ---- */
+  .channel{
+    border:1.5px solid var(--line);
+    border-left:5px solid var(--ch-color, var(--teal));
+    border-radius:10px;
+    padding:14px 16px 16px;
+    background:#fbf9f3;
+  }
+  .channel.f{ --ch-color:var(--rose); }
+  .channel.m{ --ch-color:var(--teal); }
+  .channel .ch-tag{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10.5px; letter-spacing:.06em;
+    text-transform:uppercase; color:var(--ch-color); font-weight:600;
+    margin-bottom:2px;
+  }
+  .channel .ch-tag::before{
+    content:""; width:8px; height:8px; border-radius:50%; background:var(--ch-color);
+  }
+  .channel label{ margin-top:10px; }
+  button.preview{
+    background:var(--panel-2);
+    color:var(--ch-color, var(--ink));
+    border:1.5px solid var(--ch-color, var(--line));
+    font-size:12.5px; padding:9px 14px; width:100%; justify-content:center;
+  }
+  button.preview:hover:not(:disabled){ background:var(--ch-color); color:#fff; }
+
+  /* ---- patchbay (8-track category list) ---- */
+  .patchbay{ margin-top:4px; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .track{
+    display:flex; align-items:center; gap:12px;
+    padding:11px 14px;
+    background:#fbf9f3;
+    border-bottom:1px solid var(--line);
+    cursor:pointer;
+  }
+  .track:last-child{ border-bottom:none; }
+  .track .t-num{
+    font-family:var(--mono); font-size:11px; color:var(--ink-soft);
+    width:18px; flex:0 0 auto;
+  }
+  .track .t-name{
+    font-family:var(--sans); font-size:14px; font-weight:500; color:var(--ink);
+    flex:1;
+  }
+  .track .t-chan{
+    font-family:var(--mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase;
+    padding:3px 9px; border-radius:20px; flex:0 0 auto; font-weight:600;
+  }
+  .track.f .t-chan{ background:var(--rose-tint); color:var(--rose-dark); }
+  .track.m .t-chan{ background:var(--teal-tint); color:var(--teal-dark); }
+  .track input{ width:auto; flex:0 0 auto; accent-color:var(--ink-soft); }
+  .track.f input:checked{ accent-color:var(--rose); }
+  .track.m input:checked{ accent-color:var(--teal); }
+  .track:has(input:not(:checked)){ opacity:.5; }
+
+  button{
+    font-family:var(--sans);
+    font-size:13.5px;
+    font-weight:600;
+    background:var(--bg-1);
+    color:#f4f1e6;
+    border:none;
+    padding:12px 20px;
+    border-radius:9px;
+    cursor:pointer;
+    transition:transform .1s, background .15s, opacity .15s;
+    display:inline-flex; align-items:center; gap:8px;
+  }
+  button:hover:not(:disabled){background:#16281f; transform:translateY(-1px);}
+  button:active:not(:disabled){transform:translateY(0);}
+  button.primary{background:var(--teal);}
+  button.primary:hover:not(:disabled){background:var(--teal-dark);}
+  button.secondary{background:#fff; color:var(--ink); border:1.5px solid #d8d2c0;}
+  button.secondary:hover:not(:disabled){background:#f3f0e6;}
+  button:disabled{opacity:.4; cursor:not-allowed; transform:none;}
+  button.stop{background:var(--coral);}
+  button.stop:hover:not(:disabled){background:#9c3f31;}
+
+  .btnrow{display:flex; gap:10px; flex-wrap:wrap; margin-top:16px;}
+
+  .status-line{
+    font-family:var(--sans); font-size:13px; color:var(--ink-soft);
+    margin-top:10px; line-height:1.5;
+  }
+
+  .bar-outer{
+    height:10px; background:#eee9db; border-radius:3px; overflow:hidden;
+    margin-top:10px; border:1px solid var(--line);
+    position:relative;
+  }
+  .bar-outer::after{
+    content:""; position:absolute; inset:0;
+    background-image:repeating-linear-gradient(90deg, transparent 0, transparent 9%, rgba(0,0,0,.06) 9%, rgba(0,0,0,.06) 10%);
+    pointer-events:none;
+  }
+  .bar-inner{
+    height:100%;
+    background:linear-gradient(90deg, var(--teal), var(--ok));
+    width:0%;
+    transition:width .3s ease;
+  }
+
+  .counters{
+    display:flex; gap:0; margin-top:18px; flex-wrap:wrap;
+    border:1px solid var(--line); border-radius:9px; overflow:hidden;
+  }
+  .counters span{
+    flex:1; min-width:90px;
+    font-family:var(--mono); font-size:10.5px; letter-spacing:.03em;
+    text-transform:uppercase; color:var(--ink-soft);
+    padding:12px 14px;
+    border-right:1px solid var(--line);
+    background:#fbf9f3;
+  }
+  .counters span:last-child{border-right:none;}
+  .counters span b{
+    display:block; font-size:21px; font-family:var(--mono); font-weight:600;
+    color:var(--ink); margin-top:4px; letter-spacing:.01em;
+  }
+
+  #log{
+    height:230px; overflow-y:auto; background:var(--bg-0); color:#d8d2c2;
+    font-family:var(--mono); font-size:12px; padding:14px 16px; border-radius:9px;
+    line-height:1.6; margin-top:18px;
+    border:1px solid #1c2b25;
+  }
+  #log .e-ok{color:#79d99a;}
+  #log .e-err{color:#f19388;}
+  #log .e-skip{color:#e0c583;}
+  #log .e-info{color:#8fb4d9;}
+
+  .hint{font-size:13px; color:var(--ink-soft); margin-top:12px; line-height:1.55;}
+  .hint code{
+    background:#f0ece0; padding:1px 6px; border-radius:5px;
+    font-family:var(--mono); font-size:12px;
+  }
+  .pill{
+    display:inline-block; font-family:var(--mono); font-size:9.5px;
+    background:var(--teal); color:#fff; padding:3px 9px; border-radius:3px; margin-left:8px;
+    letter-spacing:.03em; text-transform:uppercase; font-weight:600;
+  }
+
+  .foot{
+    text-align:center; font-family:var(--sans); font-size:12.5px; color:#7d8a80;
+    margin:36px auto 0; max-width:520px; line-height:1.6;
+  }
+
+  .alert{
+    background:#fbeceb; border:1.5px solid #e3b3ac; color:#8a3226;
+    padding:13px 15px; border-radius:9px; font-size:13.5px; line-height:1.5;
+    margin-top:14px; font-weight:500;
+  }
+  .quota-bar-outer{
+    height:10px; background:#eee9db; border-radius:3px; overflow:hidden;
+    margin-top:12px; border:1px solid var(--line);
+  }
+  .quota-bar-inner{
+    height:100%; width:0%; border-radius:3px;
+    background:linear-gradient(90deg, var(--teal), var(--ok));
+    transition:width .3s ease, background .3s ease;
+  }
+
+  .batch-list-wrap{margin-top:20px;}
+  .batch-list-head{
+    font-family:var(--mono); font-size:11px; text-transform:uppercase;
+    letter-spacing:.06em; color:var(--ink-soft); margin-bottom:10px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .batch-list{display:flex; flex-direction:column; gap:8px;}
+  .batch-list-empty{
+    font-family:var(--sans); font-size:13px; color:#9a9384;
+    padding:12px 14px; border:1.5px dashed var(--line); border-radius:9px;
+  }
+  .batch-row{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:11px 15px; border:1px solid var(--line); border-radius:9px;
+    background:#fbf9f3; font-size:13.5px; gap:10px;
+  }
+  .batch-row .b-info{color:var(--ink); font-weight:500;}
+  .batch-row .b-sub{
+    display:block; font-family:var(--mono); font-size:11px; color:var(--ink-soft);
+    margin-top:2px; font-weight:400;
+  }
+  .batch-row.downloaded{opacity:.65;}
+  .batch-row button{
+    padding:7px 13px; font-size:11.5px; flex:0 0 auto;
+  }
+
+  @media (max-width: 560px){
+    .row{ flex-direction:column; }
+    header.hero .chain{ flex-direction:column; }
+    header.hero .chain span{ border-right:none; border-bottom:1px solid rgba(255,255,255,.12); }
+    header.hero .chain span:last-child{ border-bottom:none; }
+    .counters{ flex-direction:column; }
+    .counters span{ border-right:none; border-bottom:1px solid var(--line); }
+    .counters span:last-child{ border-bottom:none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="eyebrow"><span class="dot"></span>Console locale · ElevenLabs</div>
+  <h1>Générateur audio de vocabulaire</h1>
+  <p>Deux canaux, une bibliothèque : le canal féminin porte le mot, la définition et les sens ; le canal masculin porte les exemples, collocations, expressions et phrasal verbs — exportés en ZIP, prêts à l'emploi.</p>
+  <div class="vu" aria-hidden="true">
+    <i style="--h:14px; --d:0.0"></i><i style="--h:22px; --d:0.1"></i><i style="--h:11px; --d:0.2"></i><i style="--h:28px; --d:0.3"></i><i style="--h:18px; --d:0.4"></i><i style="--h:26px; --d:0.5"></i><i style="--h:9px;  --d:0.6"></i><i style="--h:20px; --d:0.7"></i><i style="--h:31px; --d:0.8"></i><i style="--h:15px; --d:0.9"></i><i style="--h:24px; --d:1.0"></i><i style="--h:12px; --d:1.1"></i><i style="--h:29px; --d:1.2"></i><i style="--h:17px; --d:1.3"></i><i style="--h:21px; --d:1.4"></i><i style="--h:10px; --d:1.5"></i><i style="--h:27px; --d:1.6"></i><i style="--h:19px; --d:1.7"></i><i style="--h:13px; --d:1.8"></i><i style="--h:23px; --d:1.9"></i>
+  </div>
+  <div class="chain">
+    <span><b>01</b> vocabulaire</span>
+    <span><b>02</b> clé API</span>
+    <span><b>03</b> pistes</span>
+    <span><b>04</b> réglages</span>
+    <span><b>05</b> génération</span>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section>
+    <div class="step-head">
+      <div class="step-num">01</div>
+      <h2>Fichier de vocabulaire</h2>
+    </div>
+    <label for="jsonFile">voc_enrichie.json</label>
+    <input type="file" id="jsonFile" accept="application/json">
+    <div class="status-line" id="jsonStatus">Aucun fichier chargé.</div>
+
+    <label for="progressFile">Reprendre une session (journal de progression, optionnel)</label>
+    <input type="file" id="progressFile" accept="application/json">
+    <div class="status-line" id="progressStatus">Aucun journal chargé — tout sera (re)généré.</div>
+  </section>
+
+  <section>
+    <div class="step-head">
+      <div class="step-num">02</div>
+      <h2>Clé API ElevenLabs</h2>
+    </div>
+    <label for="apiKey">Clé API</label>
+    <input type="password" id="apiKey" placeholder="sk_...">
+    <div class="btnrow">
+      <button id="checkKeyBtn" class="secondary">Vérifier la clé &amp; charger les voix</button>
+    </div>
+    <div id="quotaWrap" style="display:none;">
+      <div class="quota-bar-outer"><div class="quota-bar-inner" id="quotaBarInner"></div></div>
+      <div class="status-line" id="quotaText"></div>
+    </div>
+    <div class="alert" id="quotaAlert" style="display:none;">
+      ⚠️ Quota atteint sur cette clé. Collez une nouvelle clé API ci-dessus puis cliquez sur « Vérifier la clé &amp; charger les voix » — la génération reprendra automatiquement là où elle s'est arrêtée.
+    </div>
+
+    <div class="row">
+      <div class="channel f">
+        <div class="ch-tag">Canal féminin</div>
+        <label for="voiceSelectFemale">Voix</label>
+        <select id="voiceSelectFemale"><option value="">— vérifiez d'abord la clé —</option></select>
+        <div class="btnrow" style="margin-top:10px;">
+          <button id="previewFemaleBtn" class="preview" disabled>🔊 Écouter cette voix</button>
+        </div>
+      </div>
+      <div class="channel m">
+        <div class="ch-tag">Canal masculin</div>
+        <label for="voiceSelectMale">Voix</label>
+        <select id="voiceSelectMale"><option value="">— vérifiez d'abord la clé —</option></select>
+        <div class="btnrow" style="margin-top:10px;">
+          <button id="previewMaleBtn" class="preview" disabled>🔊 Écouter cette voix</button>
+        </div>
+      </div>
+    </div>
+    <div class="status-line" id="previewStatus"></div>
+    <p class="hint">Le canal féminin porte Mot, Définition et Sens. Le canal masculin porte Exemples, Exemples des sens, Collocations, Expressions et Phrasal verbs. Votre choix est mémorisé pour la prochaine fois.</p>
+
+    <label for="modelSelect">Modèle</label>
+    <select id="modelSelect">
+      <option value="eleven_multilingual_v2">eleven_multilingual_v2 — qualité, multilingue</option>
+      <option value="eleven_turbo_v2_5">eleven_turbo_v2_5 — rapide, moins cher</option>
+      <option value="eleven_flash_v2_5">eleven_flash_v2_5 — le plus rapide</option>
+    </select>
+  </section>
+
+  <section>
+    <div class="step-head">
+      <div class="step-num">03</div>
+      <h2>Ce qu'il faut générer</h2>
+    </div>
+    <div class="patchbay">
+      <label class="track f"><span class="t-num">01</span><span class="t-name">Mot</span><span class="t-chan">féminin</span><input type="checkbox" id="cat_mot" checked></label>
+      <label class="track f"><span class="t-num">02</span><span class="t-name">Définition</span><span class="t-chan">féminin</span><input type="checkbox" id="cat_definition" checked></label>
+      <label class="track f"><span class="t-num">03</span><span class="t-name">Sens (senses)</span><span class="t-chan">féminin</span><input type="checkbox" id="cat_senses" checked></label>
+      <label class="track m"><span class="t-num">04</span><span class="t-name">Exemples</span><span class="t-chan">masculin</span><input type="checkbox" id="cat_examples" checked></label>
+      <label class="track m"><span class="t-num">05</span><span class="t-name">Exemples des sens</span><span class="t-chan">masculin</span><input type="checkbox" id="cat_sensExamples" checked></label>
+      <label class="track m"><span class="t-num">06</span><span class="t-name">Collocations</span><span class="t-chan">masculin</span><input type="checkbox" id="cat_collocations" checked></label>
+      <label class="track m"><span class="t-num">07</span><span class="t-name">Expressions</span><span class="t-chan">masculin</span><input type="checkbox" id="cat_expressions" checked></label>
+      <label class="track m"><span class="t-num">08</span><span class="t-name">Phrasal verbs</span><span class="t-chan">masculin</span><input type="checkbox" id="cat_phrasalVerbs" checked></label>
+    </div>
+    <p class="hint">Chaque piste passe automatiquement par le canal féminin ou masculin choisi à l'étape 02.</p>
+  </section>
+
+  <section>
+    <div class="step-head">
+      <div class="step-num">04</div>
+      <h2>Portée &amp; réglages</h2>
+    </div>
+    <div class="row">
+      <div>
+        <label for="idFrom">ID de début</label>
+        <input type="number" id="idFrom" placeholder="1">
+      </div>
+      <div>
+        <label for="idTo">ID de fin</label>
+        <input type="number" id="idTo" placeholder="(dernier)">
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label for="batchSize">Mots par lot ZIP</label>
+        <input type="number" id="batchSize" value="1000">
+      </div>
+      <div>
+        <label for="concurrency">Requêtes simultanées</label>
+        <input type="number" id="concurrency" value="1">
+      </div>
+    </div>
+    <label for="safetyMargin">Marge de sécurité quota (caractères)</label>
+    <input type="number" id="safetyMargin" value="200">
+    <p class="hint">La génération se met en pause automatiquement dès qu'il reste moins de caractères que la prochaine tâche + cette marge, pour ne jamais dépasser le quota de la clé active.</p>
+    <div class="status-line" id="estimate">Chargez le JSON pour estimer le volume de caractères.</div>
+  </section>
+
+  <section>
+    <div class="step-head">
+      <div class="step-num">05</div>
+      <h2>Génération</h2>
+    </div>
+    <div class="btnrow">
+      <button id="startBtn" class="primary" disabled>▶ Démarrer</button>
+      <button id="pauseBtn" class="secondary" disabled>❚❚ Pause</button>
+      <button id="stopBtn" class="stop" disabled>■ Arrêter</button>
+      <button id="downloadZipBtn" class="secondary" disabled>Finaliser le lot en cours</button>
+      <button id="downloadAllBtn" class="primary" disabled>⬇ Télécharger tous les ZIP</button>
+      <button id="downloadLogBtn" class="secondary">Télécharger le journal</button>
+    </div>
+
+    <div class="bar-outer"><div class="bar-inner" id="barInner"></div></div>
+    <div class="counters">
+      <span>Fait <b id="cDone">0</b></span>
+      <span>Ignorés <b id="cSkip">0</b></span>
+      <span>Échecs <b id="cFail">0</b></span>
+      <span>Restants <b id="cLeft">0</b></span>
+      <span>Total mots <b id="cTotal">0</b></span>
+    </div>
+
+    <div id="log"></div>
+
+    <div class="batch-list-wrap">
+      <div class="batch-list-head">Lots prêts <span class="pill" id="batchCountPill">0</span></div>
+      <div id="batchList"><div class="batch-list-empty">Aucun lot pour l'instant — les lots de 1000 mots apparaissent ici au fur et à mesure.</div></div>
+    </div>
+  </section>
+
+  <p class="foot">Chaque lot (1000 mots par défaut) reste en mémoire jusqu'à ce que vous le téléchargiez, individuellement ou tous ensemble une fois les 10 825 mots traités. Gardez cet onglet ouvert pendant toute la génération.</p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  let words = [];              // full parsed JSON
+  let doneSet = new Set();     // "id:category" already completed (from imported log or this session)
+  let failedList = [];         // {id, word, category, reason}
+  let apiKey = "";
+  let voiceIdFemale = "";
+  let voiceIdMale = "";
+  let modelId = "eleven_multilingual_v2";
+  let categories = [];         // which categories are active this run
+
+  // ---------- category definitions: key, checkbox id, label, gender ----------
+  const CATEGORY_DEFS = [
+    { key:'mot',           chk:'cat_mot',           gender:'female' },
+    { key:'definition',    chk:'cat_definition',    gender:'female' },
+    { key:'senses',        chk:'cat_senses',        gender:'female' },
+    { key:'examples',      chk:'cat_examples',      gender:'male'   },
+    { key:'sensExamples',  chk:'cat_sensExamples',  gender:'male'   },
+    { key:'collocations',  chk:'cat_collocations',  gender:'male'   },
+    { key:'expressions',   chk:'cat_expressions',   gender:'male'   },
+    { key:'phrasalVerbs',  chk:'cat_phrasalVerbs',  gender:'male'   }
+  ];
+  const CATEGORY_GENDER = {};
+  CATEGORY_DEFS.forEach(c => CATEGORY_GENDER[c.key] = c.gender);
+
+  function voiceForCategory(category){
+    return CATEGORY_GENDER[category] === 'female' ? voiceIdFemale : voiceIdMale;
+  }
+  let queue = [];              // task list for current run: {id, word, category, text, filename}
+  let zip = new JSZip();
+  let filesInCurrentZip = 0;
+  let wordsInCurrentZip = new Set();
+  let isPaused = false;
+  let isStopped = true;
+  let totalToProcess = 0;
+  let processedCount = 0;
+
+  // quota tracking (per active API key)
+  let quotaLimit = null;        // character_limit of current key, or null if unknown
+  let quotaUsedAtCheck = 0;     // character_count at time key was validated
+  let quotaUsedSession = 0;     // characters consumed by this tool since that check
+  let quotaPaused = false;      // true when auto-paused specifically for quota
+
+  // batches ready to download: {index, blob, filename, wordCount, fileCount, status}
+  let batches = [];
+  let batchCounter = 0;
+
+  const el = (id) => document.getElementById(id);
+  const logBox = el('log');
+
+  function log(msg, type){
+    const line = document.createElement('div');
+    line.className = 'e-' + (type || 'info');
+    const t = new Date().toLocaleTimeString();
+    line.textContent = `[${t}] ${msg}`;
+    logBox.appendChild(line);
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+
+  function sanitize(str){
+    return String(str).replace(/[^a-zA-Z0-9À-ÿ_-]/g, '_').slice(0, 60);
+  }
+
+  // ---------- 1. Load vocabulary JSON ----------
+  el('jsonFile').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try{
+        words = JSON.parse(ev.target.result);
+        if(!Array.isArray(words)) throw new Error("Le JSON doit être un tableau.");
+        el('jsonStatus').textContent = `✓ ${words.length} mots chargés.`;
+        el('cTotal').textContent = words.length;
+        updateEstimate();
+        maybeEnableStart();
+      }catch(err){
+        el('jsonStatus').textContent = "✗ Erreur de lecture JSON : " + err.message;
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  // ---------- optional progress log import ----------
+  el('progressFile').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try{
+        const data = JSON.parse(ev.target.result);
+        const doneArr = data.done || [];
+        doneArr.forEach(d => doneSet.add(d.id + ':' + d.category));
+        el('progressStatus').textContent = `✓ ${doneArr.length} éléments déjà marqués comme faits — ils seront ignorés.`;
+        updateEstimate();
+      }catch(err){
+        el('progressStatus').textContent = "✗ Erreur de lecture du journal : " + err.message;
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  // ---------- 2. API key check ----------
+  el('checkKeyBtn').addEventListener('click', async () => {
+    apiKey = el('apiKey').value.trim();
+    if(!apiKey){ log("Entrez une clé API d'abord.", 'err'); return; }
+    el('checkKeyBtn').disabled = true;
+    el('checkKeyBtn').textContent = 'Vérification…';
+    try{
+      const [voicesRes, subRes] = await Promise.all([
+        fetch('https://api.elevenlabs.io/v1/voices', { headers: { 'xi-api-key': apiKey }}),
+        fetch('https://api.elevenlabs.io/v1/user/subscription', { headers: { 'xi-api-key': apiKey }})
+      ]);
+      if(!voicesRes.ok) throw new Error('Clé invalide ou refusée (HTTP ' + voicesRes.status + ')');
+      const voicesData = await voicesRes.json();
+      const savedFemale = localStorage.getItem('voiceIdFemale') || '';
+      const savedMale = localStorage.getItem('voiceIdMale') || '';
+      [ {sel: el('voiceSelectFemale'), saved: savedFemale}, {sel: el('voiceSelectMale'), saved: savedMale} ]
+        .forEach(({sel, saved}) => {
+          sel.innerHTML = '';
+          (voicesData.voices || []).forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v.voice_id;
+            opt.textContent = v.name;
+            sel.appendChild(opt);
+          });
+          if(saved && (voicesData.voices||[]).some(v => v.voice_id === saved)){
+            sel.value = saved;
+          }
+        });
+      voiceIdFemale = el('voiceSelectFemale').value;
+      voiceIdMale = el('voiceSelectMale').value;
+      el('previewFemaleBtn').disabled = !voiceIdFemale;
+      el('previewMaleBtn').disabled = !voiceIdMale;
+
+      if(subRes.ok){
+        const sub = await subRes.json();
+        quotaLimit = sub.character_limit;
+        quotaUsedAtCheck = sub.character_count;
+        quotaUsedSession = 0;
+        updateQuotaUI();
+      }else{
+        quotaLimit = null;
+        el('quotaWrap').style.display = 'none';
+        log("Impossible de lire le quota pour cette clé — la pause automatique de quota est désactivée.", 'skip');
+      }
+      log('Clé validée. ' + (voicesData.voices||[]).length + ' voix chargées.', 'ok');
+      maybeEnableStart();
+
+      // if the run was auto-paused because the previous key ran out of quota, resume now
+      if(quotaPaused){
+        quotaPaused = false;
+        isPaused = false;
+        el('pauseBtn').textContent = '❚❚ Pause';
+        el('quotaAlert').style.display = 'none';
+        log('Nouvelle clé validée — reprise de la génération.', 'ok');
+      }
+    }catch(err){
+      log('Erreur de vérification : ' + err.message, 'err');
+    }finally{
+      el('checkKeyBtn').disabled = false;
+      el('checkKeyBtn').textContent = "Vérifier la clé & charger les voix";
+    }
+  });
+
+  el('voiceSelectFemale').addEventListener('change', (e)=>{
+    voiceIdFemale = e.target.value;
+    localStorage.setItem('voiceIdFemale', voiceIdFemale);
+    el('previewFemaleBtn').disabled = !voiceIdFemale;
+  });
+  el('voiceSelectMale').addEventListener('change', (e)=>{
+    voiceIdMale = e.target.value;
+    localStorage.setItem('voiceIdMale', voiceIdMale);
+    el('previewMaleBtn').disabled = !voiceIdMale;
+  });
+  el('modelSelect').addEventListener('change', (e)=> modelId = e.target.value);
+
+  // ---------- voice preview ----------
+  let previewAudio = null;
+  async function previewVoice(vId, btn){
+    if(!apiKey){ log("Entrez et vérifiez une clé API d'abord.", 'err'); return; }
+    if(!vId){ return; }
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Chargement…';
+    el('previewStatus').textContent = 'Génération de l\'aperçu…';
+    try{
+      const blob = await ttsCall("This is a preview of this voice.", vId);
+      if(previewAudio){ previewAudio.pause(); }
+      previewAudio = new Audio(URL.createObjectURL(blob));
+      previewAudio.play();
+      el('previewStatus').textContent = 'Aperçu en cours de lecture.';
+    }catch(err){
+      el('previewStatus').textContent = "Erreur d'aperçu : " + err.message;
+      log("Erreur d'aperçu de voix : " + err.message, 'err');
+    }finally{
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  }
+  el('previewFemaleBtn').addEventListener('click', () => previewVoice(voiceIdFemale, el('previewFemaleBtn')));
+  el('previewMaleBtn').addEventListener('click', () => previewVoice(voiceIdMale, el('previewMaleBtn')));
+
+  function maybeEnableStart(){
+    el('startBtn').disabled = !(words.length && apiKey);
+  }
+
+  // ---------- quota helpers ----------
+  function updateQuotaUI(){
+    if(quotaLimit == null){ el('quotaWrap').style.display = 'none'; return; }
+    const used = quotaUsedAtCheck + quotaUsedSession;
+    const pct = Math.max(0, Math.min(100, Math.round((used/quotaLimit)*100)));
+    el('quotaWrap').style.display = 'block';
+    el('quotaBarInner').style.width = pct + '%';
+    el('quotaBarInner').style.background = pct > 88
+      ? 'linear-gradient(90deg, #c1503f, #e07a5f)'
+      : 'linear-gradient(90deg, #1f7a6c, #58ab63)';
+    const remaining = Math.max(0, quotaLimit - used);
+    el('quotaText').textContent = `${used.toLocaleString()} / ${quotaLimit.toLocaleString()} caractères utilisés sur cette clé · ${remaining.toLocaleString()} restants`;
+  }
+
+  function remainingQuota(){
+    if(quotaLimit == null) return Infinity;
+    return quotaLimit - quotaUsedAtCheck - quotaUsedSession;
+  }
+
+  function hasEnoughQuota(textLen){
+    if(quotaLimit == null) return true; // unknown quota: don't block, rely on API error fallback
+    const margin = parseInt(el('safetyMargin').value) || 0;
+    return remainingQuota() - margin >= textLen;
+  }
+
+  function pauseForQuota(reason){
+    isPaused = true;
+    el('pauseBtn').textContent = '▶ Reprendre';
+    el('quotaAlert').style.display = 'block';
+    if(quotaPaused) return; // already flagged & logged, just keep it paused
+    quotaPaused = true;
+    log(reason, 'err');
+  }
+
+  // ---------- text builders ----------
+  function buildText(w, category){
+    if(category === 'mot'){
+      return (w.word || '').trim();
+    }
+    if(category === 'definition'){
+      return (w.definition || '').trim();
+    }
+    if(category === 'senses'){
+      const defs = (w.senses || []).map(s => s.definition).filter(Boolean);
+      return defs.join(' ... ');
+    }
+    if(category === 'examples'){
+      const exs = (w.examples || []).map(x => x.en).filter(Boolean);
+      return exs.join(' ... ');
+    }
+    if(category === 'sensExamples'){
+      const exs = [];
+      (w.senses || []).forEach(s => (s.examples || []).forEach(x => { if(x.en) exs.push(x.en); }));
+      return exs.join(' ... ');
+    }
+    if(category === 'collocations'){
+      return (w.collocations || []).filter(Boolean).join(', ');
+    }
+    if(category === 'expressions'){
+      return (w.expressions || []).filter(Boolean).join(', ');
+    }
+    if(category === 'phrasalVerbs'){
+      return (w.phrasalVerbs || []).filter(Boolean).join(', ');
+    }
+    return '';
+  }
+
+  function filenameFor(w, category){
+    return `${w.id}_${sanitize(w.word)}_${category}.mp3`;
+  }
+
+  // ---------- estimate ----------
+  function currentFilter(){
+    const from = parseInt(el('idFrom').value) || -Infinity;
+    const to = parseInt(el('idTo').value) || Infinity;
+    return words.filter(w => w.id >= from && w.id <= to);
+  }
+
+  function activeCategories(){
+    return CATEGORY_DEFS.filter(c => el(c.chk).checked).map(c => c.key);
+  }
+
+  function updateEstimate(){
+    if(!words.length){ return; }
+    const subset = currentFilter();
+    const cats = activeCategories();
+    let chars = 0, tasks = 0;
+    subset.forEach(w => {
+      cats.forEach(cat => {
+        if(doneSet.has(w.id + ':' + cat)) return;
+        const t = buildText(w, cat);
+        if(t) { chars += t.length; tasks++; }
+      });
+    });
+    el('estimate').textContent = `${subset.length} mots sélectionnés · ${tasks} audios à générer · ≈ ${chars.toLocaleString()} caractères`;
+  }
+  ['idFrom','idTo', ...CATEGORY_DEFS.map(c=>c.chk)].forEach(id=>{
+    el(id).addEventListener('input', updateEstimate);
+    el(id).addEventListener('change', updateEstimate);
+  });
+
+  // ---------- batch handling (batches accumulate, downloaded individually or all at once) ----------
+  async function finalizeBatch(){
+    if(filesInCurrentZip === 0){ return; }
+    batchCounter++;
+    const n = filesInCurrentZip, w = wordsInCurrentZip.size;
+    log(`Compression du lot ${batchCounter} (${n} fichiers, ${w} mots)…`, 'info');
+    const blob = await zip.generateAsync({type:'blob'});
+    batches.push({
+      index: batchCounter,
+      blob,
+      filename: `audios_vocab_lot_${String(batchCounter).padStart(2,'0')}.zip`,
+      wordCount: w,
+      fileCount: n,
+      status: 'ready'
+    });
+    log(`Lot ${batchCounter} prêt (${n} fichiers, ${w} mots).`, 'ok');
+    zip = new JSZip();
+    filesInCurrentZip = 0;
+    wordsInCurrentZip = new Set();
+    renderBatchList();
+  }
+
+  function renderBatchList(){
+    const container = el('batchList');
+    el('batchCountPill').textContent = batches.length;
+    el('downloadAllBtn').disabled = batches.length === 0;
+    if(batches.length === 0){
+      container.innerHTML = '<div class="batch-list-empty">Aucun lot pour l\'instant — les lots de 1000 mots apparaissent ici au fur et à mesure.</div>';
+      return;
+    }
+    container.innerHTML = '';
+    batches.forEach((b, i) => {
+      const row = document.createElement('div');
+      row.className = 'batch-row' + (b.status === 'downloaded' ? ' downloaded' : '');
+      const info = document.createElement('div');
+      info.className = 'b-info';
+      info.innerHTML = `Lot ${b.index}<span class="b-sub">${b.wordCount} mots · ${b.fileCount} fichiers ${b.status === 'downloaded' ? '· déjà téléchargé' : ''}</span>`;
+      const btn = document.createElement('button');
+      btn.className = 'secondary';
+      btn.textContent = b.status === 'downloaded' ? 'Re-télécharger' : 'Télécharger';
+      btn.addEventListener('click', () => downloadBatch(i));
+      row.appendChild(info);
+      row.appendChild(btn);
+      container.appendChild(row);
+    });
+  }
+
+  function downloadBatch(i){
+    const b = batches[i];
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b.blob);
+    a.download = b.filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    b.status = 'downloaded';
+    renderBatchList();
+  }
+
+  async function downloadAllBatches(){
+    if(batches.length === 0){ log('Aucun lot à télécharger pour le moment.', 'info'); return; }
+    log(`Téléchargement de ${batches.length} lot(s)…`, 'info');
+    for(let i=0;i<batches.length;i++){
+      downloadBatch(i);
+      await new Promise(r => setTimeout(r, 700));
+    }
+    log('Tous les lots ont été proposés au téléchargement.', 'ok');
+  }
+
+  el('downloadZipBtn').addEventListener('click', () => finalizeBatch());
+  el('downloadAllBtn').addEventListener('click', () => downloadAllBatches());
+
+  // ---------- progress log download ----------
+  function downloadProgressLog(){
+    const done = [];
+    doneSet.forEach(key => {
+      const [id, category] = key.split(':');
+      done.push({id: parseInt(id), category});
+    });
+    const data = { done, failed: failedList, exportedAt: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'progression_audio_vocab.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  el('downloadLogBtn').addEventListener('click', downloadProgressLog);
+
+  // ---------- TTS call with retry ----------
+  async function ttsCall(text, vId){
+    const url = `https://api.elevenlabs.io/v1/text-to-speech/${vId}`;
+    const maxAttempts = 3;
+    let lastErr;
+    for(let attempt=1; attempt<=maxAttempts; attempt++){
+      try{
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'xi-api-key': apiKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            text: text,
+            model_id: modelId,
+            voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+          })
+        });
+        if(!res.ok){
+          const errText = await res.text().catch(()=> '');
+          throw new Error(`HTTP ${res.status} ${errText.slice(0,120)}`);
+        }
+        return await res.blob();
+      }catch(err){
+        lastErr = err;
+        if(attempt < maxAttempts){
+          const wait = attempt * 1500;
+          await new Promise(r => setTimeout(r, wait));
+        }
+      }
+    }
+    throw lastErr;
+  }
+
+  // ---------- main run loop ----------
+  async function runQueue(){
+    const batchSize = parseInt(el('batchSize').value) || 1000;
+    const conc = Math.max(1, parseInt(el('concurrency').value) || 1);
+    let idx = 0;
+
+    async function worker(){
+      while(true){
+        if(isStopped) return;
+        while(isPaused){ await new Promise(r=>setTimeout(r, 400)); if(isStopped) return; }
+        if(idx >= queue.length) return;
+
+        const task = queue[idx]; // peek only — do not consume yet
+
+        // stop BEFORE sending a request that would exceed the current key's quota
+        if(!hasEnoughQuota(task.text.length)){
+          pauseForQuota(`Quota insuffisant sur la clé active (reste ≈ ${remainingQuota().toLocaleString()} caractères, il en faut ${task.text.length} pour "${task.word}"). Changez de clé pour continuer.`);
+          continue; // will wait on the isPaused loop above
+        }
+
+        idx++; // now actually consume this task
+        try{
+          const blob = await ttsCall(task.text, voiceForCategory(task.category));
+          zip.file(task.filename, blob);
+          filesInCurrentZip++;
+          wordsInCurrentZip.add(task.id);
+          doneSet.add(task.id + ':' + task.category);
+          quotaUsedSession += task.text.length;
+          updateQuotaUI();
+          processedCount++;
+          log(`✓ ${task.id} ${task.word} · ${task.category}`, 'ok');
+        }catch(err){
+          const msg = String((err && err.message) || err);
+          const looksLikeQuota = /quota|credit|401|429/i.test(msg);
+          if(looksLikeQuota){
+            idx = Math.max(0, idx - 1); // put this task back, retry after a key swap
+            pauseForQuota(`Erreur API pendant "${task.word}" (${msg}) — ressemble à un quota épuisé. Changez de clé pour continuer.`);
+          }else{
+            failedList.push({id: task.id, word: task.word, category: task.category, reason: msg});
+            processedCount++;
+            log(`✗ ${task.id} ${task.word} · ${task.category} — ${msg}`, 'err');
+          }
+        }
+
+        updateCounters();
+
+        if(wordsInCurrentZip.size >= batchSize){
+          await finalizeBatch();
+        }
+      }
+    }
+
+    const workers = [];
+    for(let i=0;i<conc;i++) workers.push(worker());
+    await Promise.all(workers);
+  }
+
+  function updateCounters(){
+    el('cDone').textContent = processedCount - failedList.length;
+    el('cFail').textContent = failedList.length;
+    el('cLeft').textContent = Math.max(0, totalToProcess - processedCount);
+    const pct = totalToProcess ? Math.round((processedCount/totalToProcess)*100) : 0;
+    el('barInner').style.width = pct + '%';
+  }
+
+  // ---------- build queue & start ----------
+  function buildQueue(){
+    const subset = currentFilter();
+    categories = activeCategories();
+    const q = [];
+    let skipped = 0;
+    subset.forEach(w => {
+      categories.forEach(cat => {
+        if(doneSet.has(w.id + ':' + cat)) return;
+        const text = buildText(w, cat);
+        if(!text){ skipped++; return; }
+        q.push({ id: w.id, word: w.word, category: cat, text, filename: filenameFor(w, cat) });
+      });
+    });
+    el('cSkip').textContent = skipped;
+    return q;
+  }
+
+  el('startBtn').addEventListener('click', async () => {
+    if(!voiceIdFemale || !voiceIdMale){ log('Sélectionnez une voix féminine et une voix masculine.', 'err'); return; }
+    queue = buildQueue();
+    if(queue.length === 0){ log('Rien à générer (tout est déjà fait, ou vide).', 'info'); return; }
+
+    totalToProcess = queue.length;
+    processedCount = 0;
+    failedList = [];
+    isStopped = false;
+    isPaused = false;
+
+    el('startBtn').disabled = true;
+    el('pauseBtn').disabled = false;
+    el('stopBtn').disabled = false;
+    el('downloadZipBtn').disabled = false;
+
+    log(`Démarrage : ${queue.length} audios à générer.`, 'info');
+    await runQueue();
+
+    if(!isStopped){
+      await finalizeBatch();
+      log(`Génération terminée. ${batches.length} lot(s) prêt(s) — utilisez « Télécharger tous les ZIP ».`, 'ok');
+      downloadProgressLog();
+    }
+
+    el('startBtn').disabled = false;
+    el('pauseBtn').disabled = true;
+    el('stopBtn').disabled = true;
+  });
+
+  el('pauseBtn').addEventListener('click', () => {
+    if(quotaPaused){
+      log("Quota épuisé sur cette clé : validez une nouvelle clé API pour reprendre (bouton « Vérifier la clé »).", 'err');
+      return;
+    }
+    isPaused = !isPaused;
+    el('pauseBtn').textContent = isPaused ? '▶ Reprendre' : '❚❚ Pause';
+    log(isPaused ? 'Pause.' : 'Reprise.', 'info');
+  });
+
+  el('stopBtn').addEventListener('click', async () => {
+    isStopped = true;
+    isPaused = false;
+    quotaPaused = false;
+    el('quotaAlert').style.display = 'none';
+    log('Arrêt demandé — le lot en cours est finalisé et prêt à télécharger.', 'info');
+    await finalizeBatch();
+    downloadProgressLog();
+    el('startBtn').disabled = false;
+    el('pauseBtn').disabled = true;
+    el('stopBtn').disabled = true;
+    el('pauseBtn').textContent = '❚❚ Pause';
+  });
+
+})();
+</script>
+</body>
+</html>
