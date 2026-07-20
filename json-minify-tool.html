@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minifier un JSON</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel2: #16213a;
+    --border: #2f3f5c;
+    --text: #e5e9f0;
+    --muted: #93a2c0;
+    --accent: #4f9dff;
+    --accent2: #22c55e;
+    --danger: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px 16px 60px;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 1.4rem; margin-bottom: 4px; }
+  p.sub { color: var(--muted); margin-top: 0; font-size: 0.92rem; line-height: 1.4; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    margin-top: 18px;
+  }
+
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 28px 16px;
+    text-align: center;
+    color: var(--muted);
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .dropzone.drag { border-color: var(--accent); background: rgba(79,157,255,0.08); }
+  .dropzone strong { color: var(--text); }
+
+  input[type=file] { display: none; }
+
+  button {
+    appearance: none;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-size: 0.98rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:disabled { background: #33415e; color: var(--muted); cursor: not-allowed; }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+
+  .file-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-top: 10px;
+    font-size: 0.88rem;
+  }
+  .file-item .name { word-break: break-all; }
+  .file-item .meta { color: var(--muted); white-space: nowrap; margin-left: 8px; }
+  .file-item .status { margin-top: 4px; font-size: 0.82rem; }
+  .status.ok { color: var(--accent2); }
+  .status.err { color: var(--danger); }
+  .status.pending { color: var(--muted); }
+
+  .file-item .actions { display: flex; gap: 8px; align-items: center; }
+  .file-item a.dl {
+    background: var(--accent2);
+    color: #04210f;
+    text-decoration: none;
+    font-weight: 700;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    white-space: nowrap;
+  }
+
+  .summary { margin-top: 14px; font-size: 0.9rem; color: var(--muted); }
+  .summary b { color: var(--accent2); }
+
+  footer { margin-top: 30px; color: var(--muted); font-size: 0.8rem; line-height: 1.5; }
+  code { background: var(--panel2); padding: 1px 5px; border-radius: 5px; font-size: 0.85em; }
+</style>
+</head>
+<body>
+
+<h1>🗜️ Minifier un JSON</h1>
+<p class="sub">
+  Choisis un ou plusieurs fichiers <code>.json</code> (ex. depuis <code>data/</code>
+  de ton carnet). Tout se passe dans le navigateur, rien n'est envoyé nulle
+  part. Chaque fichier est validé, minifié (espaces/retours à la ligne
+  supprimés), et devient téléchargeable individuellement.
+</p>
+
+<div class="card">
+  <div class="dropzone" id="dropzone">
+    <div><strong>Touche ici</strong> pour choisir des fichiers JSON</div>
+    <div style="margin-top:6px; font-size:0.85rem;">ou dépose-les (sur ordinateur)</div>
+  </div>
+  <input type="file" id="fileInput" accept=".json,application/json" multiple>
+
+  <div class="row">
+    <button class="btn-primary" id="minifyBtn" disabled>Minifier</button>
+    <button class="btn-ghost" id="downloadAllBtn" disabled>Tout télécharger</button>
+    <button class="btn-ghost" id="clearBtn" disabled>Effacer la liste</button>
+  </div>
+
+  <div id="fileList"></div>
+  <div class="summary" id="summary"></div>
+</div>
+
+<footer>
+  Astuce : sur iPhone, chaque téléchargement propose « Enregistrer dans
+  Fichiers » — tu peux ensuite déposer le fichier minifié directement dans
+  <code>data/</code> sur GitHub via <em>Add file → Upload files</em>, à la
+  place de l'original.
+</footer>
+
+<script>
+(function () {
+  const fileInput = document.getElementById('fileInput');
+  const dropzone = document.getElementById('dropzone');
+  const fileList = document.getElementById('fileList');
+  const minifyBtn = document.getElementById('minifyBtn');
+  const downloadAllBtn = document.getElementById('downloadAllBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const summary = document.getElementById('summary');
+
+  // entries: { id, file, originalSize, status, error, minifiedBlob, minifiedSize, outName }
+  let entries = [];
+  let nextId = 1;
+
+  dropzone.addEventListener('click', () => fileInput.click());
+
+  dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.classList.add('drag');
+  });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('drag');
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+      addFiles(e.dataTransfer.files);
+    }
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files && fileInput.files.length) {
+      addFiles(fileInput.files);
+    }
+    fileInput.value = '';
+  });
+
+  function addFiles(fileListObj) {
+    Array.from(fileListObj).forEach((f) => {
+      entries.push({
+        id: nextId++,
+        file: f,
+        originalSize: f.size,
+        status: 'pending',
+        error: null,
+        minifiedBlob: null,
+        minifiedSize: null,
+        outName: suggestOutName(f.name)
+      });
+    });
+    render();
+  }
+
+  function suggestOutName(name) {
+    if (name.toLowerCase().endsWith('.json')) {
+      return name; // on écrase le même nom, prêt à remplacer l'original sur GitHub
+    }
+    return name + '.min.json';
+  }
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' o';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' Ko';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' Mo';
+  }
+
+  function render() {
+    fileList.innerHTML = '';
+    entries.forEach((entry) => {
+      const item = document.createElement('div');
+      item.className = 'file-item';
+
+      const left = document.createElement('div');
+      left.style.flex = '1';
+      const nameLine = document.createElement('div');
+      nameLine.innerHTML = '<span class="name">' + escapeHtml(entry.file.name) + '</span> ' +
+        '<span class="meta">' + formatBytes(entry.originalSize) + '</span>';
+      left.appendChild(nameLine);
+
+      const statusLine = document.createElement('div');
+      if (entry.status === 'pending') {
+        statusLine.className = 'status pending';
+        statusLine.textContent = 'En attente';
+      } else if (entry.status === 'ok') {
+        statusLine.className = 'status ok';
+        const saved = entry.originalSize > 0
+          ? Math.round((1 - entry.minifiedSize / entry.originalSize) * 100)
+          : 0;
+        statusLine.textContent = 'Minifié : ' + formatBytes(entry.minifiedSize) +
+          ' (−' + saved + '%)';
+      } else if (entry.status === 'error') {
+        statusLine.className = 'status err';
+        statusLine.textContent = 'Erreur : ' + entry.error;
+      }
+      left.appendChild(statusLine);
+
+      const actions = document.createElement('div');
+      actions.className = 'actions';
+      if (entry.status === 'ok') {
+        const a = document.createElement('a');
+        a.className = 'dl';
+        a.textContent = 'Télécharger';
+        a.href = URL.createObjectURL(entry.minifiedBlob);
+        a.download = entry.outName;
+        actions.appendChild(a);
+      }
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'btn-ghost';
+      removeBtn.style.padding = '6px 10px';
+      removeBtn.style.fontSize = '0.82rem';
+      removeBtn.textContent = '✕';
+      removeBtn.addEventListener('click', () => {
+        entries = entries.filter((e) => e.id !== entry.id);
+        render();
+      });
+      actions.appendChild(removeBtn);
+
+      item.appendChild(left);
+      item.appendChild(actions);
+      fileList.appendChild(item);
+    });
+
+    const hasFiles = entries.length > 0;
+    minifyBtn.disabled = !hasFiles;
+    clearBtn.disabled = !hasFiles;
+    downloadAllBtn.disabled = !entries.some((e) => e.status === 'ok');
+
+    if (hasFiles) {
+      const okCount = entries.filter((e) => e.status === 'ok').length;
+      const totalBefore = entries.reduce((s, e) => s + e.originalSize, 0);
+      const totalAfter = entries.reduce((s, e) => s + (e.minifiedSize || 0), 0);
+      summary.textContent = entries.length + ' fichier(s) — ' + okCount + ' minifié(s). ' +
+        (totalAfter > 0
+          ? 'Total : ' + formatBytes(totalBefore) + ' → ' + formatBytes(totalAfter) + '.'
+          : '');
+    } else {
+      summary.textContent = '';
+    }
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  minifyBtn.addEventListener('click', async () => {
+    minifyBtn.disabled = true;
+    minifyBtn.textContent = 'Minification...';
+    for (const entry of entries) {
+      if (entry.status === 'ok') continue; // déjà fait
+      try {
+        const text = await entry.file.text();
+        const parsed = JSON.parse(text);
+        const minified = JSON.stringify(parsed);
+        entry.minifiedBlob = new Blob([minified], { type: 'application/json' });
+        entry.minifiedSize = entry.minifiedBlob.size;
+        entry.status = 'ok';
+        entry.error = null;
+      } catch (err) {
+        entry.status = 'error';
+        entry.error = err.message || 'JSON invalide';
+      }
+      render();
+    }
+    minifyBtn.textContent = 'Minifier';
+    minifyBtn.disabled = false;
+  });
+
+  downloadAllBtn.addEventListener('click', () => {
+    entries.filter((e) => e.status === 'ok').forEach((entry, i) => {
+      setTimeout(() => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(entry.minifiedBlob);
+        a.download = entry.outName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }, i * 400); // léger décalage : Safari bloque parfois les téléchargements simultanés
+    });
+  });
+
+  clearBtn.addEventListener('click', () => {
+    entries = [];
+    render();
+  });
+
+  render();
+})();
+</script>
+
+</body>
+</html>
