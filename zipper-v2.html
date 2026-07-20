@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compresseur Audio ZIP (Sélection de Dossier)</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <style>
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: #f4f6f8; padding: 20px; display: flex; justify-content: center; }
+    .card { background: white; max-width: 500px; width: 100%; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); text-align: center; }
+    h1 { font-size: 1.4rem; color: #1a1a1a; margin-bottom: 10px; }
+    p { font-size: 0.9rem; color: #666; margin-bottom: 20px; }
+    input[type="file"] { display: none; }
+    .file-label { display: block; background: #007aff; color: white; padding: 12px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .file-label:hover { background: #0056b3; }
+    .progress-container { margin-top: 20px; display: none; }
+    .progress-bar-bg { background: #e0e0e0; border-radius: 10px; height: 12px; overflow: hidden; margin-bottom: 8px; }
+    .progress-bar { background: #34c759; height: 100%; width: 0%; transition: width 0.2s; }
+    .status { font-size: 0.85rem; color: #444; font-weight: 500; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h1>Compresseur Audio (Mode Dossier)</h1>
+  <p>Sélectionnez un <b>dossier entier</b> contenant vos fichiers. L'outil va extraire tous les fichiers du dossier et les zipper "à plat" (sans sous-dossier) pour votre iPhone.</p>
+
+  <label for="audioInput" class="file-label">Sélectionner un dossier</label>
+  <!-- L'attribut webkitdirectory permet de sélectionner un dossier complet -->
+  <input type="file" id="audioInput" webkitdirectory directory multiple>
+
+  <div class="progress-container" id="progressContainer">
+    <div class="progress-bar-bg">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <div class="status" id="statusText">Préparation...</div>
+  </div>
+</div>
+
+<script>
+  const fileInput = document.getElementById('audioInput');
+  const progressContainer = document.getElementById('progressContainer');
+  const progressBar = document.getElementById('progressBar');
+  const statusText = document.getElementById('statusText');
+
+  fileInput.addEventListener('change', async (event) => {
+    const files = event.target.files;
+    if (!files.length) return;
+
+    // Filtrer les fichiers cachés (comme .DS_Store sur Mac)
+    const validFiles = [];
+    for (let i = 0; i < files.length; i++) {
+      if (!files[i].name.startsWith('.')) {
+        validFiles.push(files[i]);
+      }
+    }
+
+    if (validFiles.length === 0) {
+      alert("Aucun fichier valide trouvé dans ce dossier.");
+      return;
+    }
+
+    const zip = new JSZip();
+    progressContainer.style.display = 'block';
+    statusText.innerText = `Lecture des ${validFiles.length} fichiers du dossier...`;
+
+    // Ajout de chaque fichier à la RACINE du zip (pas de sous-dossier)
+    for (let i = 0; i < validFiles.length; i++) {
+      const file = validFiles[i];
+      
+      // On utilise UNIQUEMENT file.name (le nom du fichier) et non son chemin d'origine.
+      // Cela "casse" l'arborescence du dossier sélectionné et met tout à la racine du ZIP.
+      zip.file(file.name, file);
+      
+      const percent = Math.round(((i + 1) / validFiles.length) * 50);
+      progressBar.style.width = percent + '%';
+      statusText.innerText = `Préparation du fichier ${i + 1} / ${validFiles.length}...`;
+    }
+
+    statusText.innerText = "Création du fichier ZIP en cours (patientez)...";
+
+    try {
+      const blob = await zip.generateAsync({ type: "blob" }, (metadata) => {
+        const percent = 50 + Math.round(metadata.percent / 2);
+        progressBar.style.width = percent + '%';
+        statusText.innerText = `Compression : ${Math.round(metadata.percent)}%`;
+      });
+
+      statusText.innerText = "Téléchargement en cours !";
+      saveAs(blob, "mes_audios.zip");
+    } catch (error) {
+      statusText.innerText = "Erreur lors de la création du ZIP.";
+      console.error(error);
+    }
+  });
+</script>
+
+</body>
+</html>
