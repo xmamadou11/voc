@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Générateur audio · Vocabulaire · Azure</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -357,6 +356,21 @@
   #log .e-warn{color:#e0b35c;}
 
   .hint{font-size:13px; color:var(--ink-soft); margin-top:12px; line-height:1.55;}
+  .stream-box{
+    display:flex; flex-wrap:wrap; align-items:center; gap:12px;
+    border:1.5px solid var(--line); border-radius:10px;
+    background:#fbf9f3; padding:13px 15px; margin-top:16px;
+  }
+  .stream-box label.chk{
+    display:flex; align-items:center; gap:9px;
+    font-family:var(--sans); font-size:14px; font-weight:600; color:var(--ink);
+    text-transform:none; letter-spacing:0; margin:0; cursor:pointer;
+  }
+  .stream-box label.chk input{width:16px; height:16px; accent-color:var(--teal);}
+  .stream-box .stream-folder-name{
+    font-family:var(--mono); font-size:12px; color:var(--teal-dark);
+  }
+  .stream-box.disabled{opacity:.5;}
   .hint code{
     background:#f0ece0; padding:1px 6px; border-radius:5px;
     font-family:var(--mono); font-size:12px;
@@ -574,17 +588,31 @@
       <div>
         <label for="batchSize">Mots par lot ZIP</label>
         <input type="number" id="batchSize" value="1000">
-        <div class="status-line">Chaque lot est téléchargé automatiquement dès qu'il atteint ce nombre de mots.</div>
+        <div class="status-line">Chaque lot est assemblé et téléchargé automatiquement dès qu'il atteint ce nombre de mots.</div>
       </div>
       <div>
         <label for="concurrency">Requêtes simultanées</label>
         <input type="number" id="concurrency" value="1">
       </div>
     </div>
+    <label for="maxBatchMB">Filet de sécurité — taille max par lot (Mo)</label>
+    <input type="number" id="maxBatchMB" value="300">
+    <p class="hint" id="maxBatchHint">Le zip est maintenant assemblé sans jamais recopier l'audio dans un seul gros bloc de mémoire (chaque fichier audio est écrit tel quel), donc un lot de 1000 mots devrait passer sans problème, y compris sur iPhone. Ce plafond reste un filet de sécurité en dernier recours : si un lot dépasse cette taille avant les 1000 mots, il est quand même finalisé par anticipation. Vous ne devriez normalement jamais le voir se déclencher.</p>
+    <div class="status-line" id="currentBatchSizeLine">Taille du lot en cours : 0,0 Mo</div>
     <label for="safetyMargin">Marge de sécurité quota (caractères)</label>
     <input type="number" id="safetyMargin" value="200">
     <p class="hint">La génération se met en pause automatiquement dès qu'il reste moins de caractères que la prochaine tâche + cette marge, pour ne jamais dépasser le quota de la clé active.</p>
     <div class="status-line" id="estimate">Chargez le JSON pour estimer le volume de caractères.</div>
+
+    <div class="stream-box" id="streamBox">
+      <label class="chk" for="streamModeChk">
+        <input type="checkbox" id="streamModeChk">
+        Écriture directe sur disque (streaming, pour très gros volumes sur ordinateur)
+      </label>
+      <button type="button" id="chooseFolderBtn" class="secondary" disabled>📁 Choisir un dossier de sortie</button>
+      <span class="stream-folder-name" id="streamFolderName"></span>
+    </div>
+    <p class="hint" id="streamHint">Écrit chaque lot directement dans le dossier choisi au fur et à mesure. Indisponible sur iPhone/iPad (aucun navigateur mobile ne le supporte) — sur mobile, le mode normal ci-dessus suffit maintenant grâce à l'assemblage sans recopie. Nécessite Chrome ou Edge sur ordinateur. Si la page est rechargée, il faudra resélectionner le dossier.</p>
   </section>
 
   <section>
@@ -785,7 +813,8 @@
   // en plusieurs petits ZIP si nécessaire (au lieu d'un seul énorme ZIP qui ferait replanter
   // Safari en boucle : c'est exactement ce qui causait le rechargement en boucle au restore).
   async function rebuildPendingAsSafeBatches(audio){
-    zip = new JSZip();
+    currentZipWriter = null;
+    currentZipFilename = null;
     wordsInCurrentZip = new Set();
     currentBatchAudioKeys = [];
     filesInCurrentZip = 0;
@@ -794,13 +823,17 @@
     let chunkWords = new Set();
     for(const a of audio){
       const size = a.blob.size || 0;
-      // si ajouter ce mot dépasserait la taille de lot réglée, on finalise d'abord le chunk en cours
-      if(chunkWords.size > 0 && !chunkWords.has(a.wordId) && chunkWords.size >= (parseInt(el('batchSize').value) || 1000)){
-        log(`Restauration : lot intermédiaire (${filesInCurrentZip} fichiers, ${chunkWords.size} mots) — compression…`, 'info');
+      // si ajouter ce mot dépasserait la taille de lot réglée (en mots OU en Mo), on finalise
+      // d'abord le chunk en cours — le plafond en Mo est celui qui protège vraiment iPhone.
+      const wouldExceedWords = chunkWords.size >= (parseInt(el('batchSize').value) || 1000);
+      const wouldExceedBytes = bytesInCurrentZip >= maxBatchBytes();
+      if(chunkWords.size > 0 && !chunkWords.has(a.wordId) && (wouldExceedWords || wouldExceedBytes)){
+        log(`Restauration : lot intermédiaire (${filesInCurrentZip} fichiers, ${chunkWords.size} mots, ${(bytesInCurrentZip/1024/1024).toFixed(1)} Mo) — assemblage…`, 'info');
         await finalizeBatch();
         chunkWords = new Set();
       }
-      zip.file(a.filename, a.blob);
+      await ensureZipWriterReady();
+      await currentZipWriter.addFile(a.filename, a.blob);
       wordsInCurrentZip.add(a.wordId);
       currentBatchAudioKeys.push(a.key);
       filesInCurrentZip++;
@@ -881,7 +914,7 @@
 
   // avertit avant un rechargement/fermeture accidentel si tout n'est pas encore téléchargé
   window.addEventListener('beforeunload', (e) => {
-    const hasUndownloaded = filesInCurrentZip > 0 || batches.some(b => b.status !== 'downloaded');
+    const hasUndownloaded = filesInCurrentZip > 0 || batches.some(b => b.status !== 'downloaded' && b.status !== 'saved-to-disk');
     if(hasUndownloaded){
       e.preventDefault();
       e.returnValue = '';
@@ -890,7 +923,6 @@
   });
 
   let queue = [];              // task list for current run: {id, word, category, text, filename}
-  let zip = new JSZip();
   let filesInCurrentZip = 0;
   let wordsInCurrentZip = new Set();
   let currentBatchAudioKeys = []; // "id:category" keys of audio currently in `zip`, not yet finalized into a batch
@@ -907,8 +939,17 @@
   let quotaPaused = false;      // true when auto-paused specifically for quota
 
   // batches ready to download: {index, blob, filename, wordCount, fileCount, status}
+  // (en mode streaming, `blob` est absent : le lot est déjà écrit sur disque, `status` vaut 'saved-to-disk')
   let batches = [];
   let batchCounter = 0;
+
+  // ---------- mode streaming (écriture directe sur disque, sans ZIP en mémoire) ----------
+  const supportsStreamMode = 'showDirectoryPicker' in window;
+  let streamMode = false;          // activé via la case à cocher
+  let dirHandle = null;            // dossier choisi par l'utilisateur (File System Access API)
+  let currentZipWriter = null;     // StreamingZipWriter du lot en cours (mémoire ou disque), ou null
+  let currentZipFilename = null;
+  let zipInitPromise = null;       // sérialise la création du zip du prochain lot
 
   const el = (id) => document.getElementById(id);
   const logBox = el('log');
@@ -942,6 +983,19 @@
 
   function sanitize(str){
     return String(str).replace(/[^a-zA-Z0-9À-ÿ_-]/g, '_').slice(0, 60);
+  }
+
+  // plafond de taille (en octets) du lot ZIP en cours — protection anti-plantage mémoire,
+  // en particulier sur iPhone (Safari/Chrome, même moteur WebKit, mêmes limites) où assembler
+  // un gros Blob en mémoire pour un ZIP fait souvent recharger l'onglet.
+  function maxBatchBytes(){
+    const mb = parseFloat(el('maxBatchMB').value);
+    return (mb > 0 ? mb : 60) * 1024 * 1024;
+  }
+  function updateCurrentBatchSizeLine(){
+    const mb = bytesInCurrentZip / 1024 / 1024;
+    const cap = maxBatchBytes() / 1024 / 1024;
+    el('currentBatchSizeLine').textContent = `Taille du lot en cours : ${mb.toFixed(1)} Mo / ${cap.toFixed(0)} Mo`;
   }
 
   // ---------- 1. Load vocabulary JSON ----------
@@ -1249,6 +1303,174 @@
     el(id).addEventListener('change', updateEstimate);
   });
 
+  // =====================================================================
+  // ZIP STREAMING — écrit un fichier .zip valide directement sur disque via
+  // File System Access API, fichier par fichier (méthode "store", non
+  // compressée : les mp3 le sont déjà). Rien n'est jamais assemblé en
+  // mémoire : chaque en-tête + donnée audio part directement sur le flux
+  // d'écriture, et seul le répertoire central (quelques octets par fichier)
+  // est gardé en mémoire jusqu'à la fermeture du lot.
+  // =====================================================================
+  const CRC_TABLE = (() => {
+    const table = new Uint32Array(256);
+    for(let n=0;n<256;n++){
+      let c = n;
+      for(let k=0;k<8;k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      table[n] = c >>> 0;
+    }
+    return table;
+  })();
+  function crc32(bytes){
+    let crc = 0xFFFFFFFF;
+    for(let i=0;i<bytes.length;i++) crc = CRC_TABLE[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  function dosDateTime(d){
+    const time = (((d.getHours() & 0x1f) << 11) | ((d.getMinutes() & 0x3f) << 5) | (Math.floor(d.getSeconds()/2) & 0x1f)) & 0xFFFF;
+    const date = ((((d.getFullYear()-1980) & 0x7f) << 9) | (((d.getMonth()+1) & 0xf) << 5) | (d.getDate() & 0x1f)) & 0xFFFF;
+    return { time, date };
+  }
+
+  function buildLocalFileHeader(nameBytes, crc, size, dt){
+    const buf = new ArrayBuffer(30 + nameBytes.length);
+    const v = new DataView(buf);
+    v.setUint32(0, 0x04034b50, true);
+    v.setUint16(4, 20, true);       // version needed to extract
+    v.setUint16(6, 0x0800, true);   // general purpose flag: bit 11 = noms de fichier UTF-8
+    v.setUint16(8, 0, true);        // méthode : 0 = store (pas de compression)
+    v.setUint16(10, dt.time, true);
+    v.setUint16(12, dt.date, true);
+    v.setUint32(14, crc, true);
+    v.setUint32(18, size, true);    // taille compressée = taille (store)
+    v.setUint32(22, size, true);    // taille non compressée
+    v.setUint16(26, nameBytes.length, true);
+    v.setUint16(28, 0, true);       // extra field length
+    new Uint8Array(buf, 30).set(nameBytes);
+    return new Uint8Array(buf);
+  }
+
+  function buildCentralDirRecord(entry){
+    const buf = new ArrayBuffer(46 + entry.nameBytes.length);
+    const v = new DataView(buf);
+    v.setUint32(0, 0x02014b50, true);
+    v.setUint16(4, 20, true);       // version made by
+    v.setUint16(6, 20, true);       // version needed to extract
+    v.setUint16(8, 0x0800, true);
+    v.setUint16(10, 0, true);
+    v.setUint16(12, entry.dt.time, true);
+    v.setUint16(14, entry.dt.date, true);
+    v.setUint32(16, entry.crc, true);
+    v.setUint32(20, entry.size, true);
+    v.setUint32(24, entry.size, true);
+    v.setUint16(28, entry.nameBytes.length, true);
+    v.setUint16(30, 0, true);       // extra length
+    v.setUint16(32, 0, true);       // comment length
+    v.setUint16(34, 0, true);       // disk number start
+    v.setUint16(36, 0, true);       // internal file attributes
+    v.setUint32(38, 0, true);       // external file attributes
+    v.setUint32(42, entry.offset, true);
+    new Uint8Array(buf, 46).set(entry.nameBytes);
+    return new Uint8Array(buf);
+  }
+
+  function buildEOCD(count, centralSize, centralOffset){
+    const buf = new ArrayBuffer(22);
+    const v = new DataView(buf);
+    v.setUint32(0, 0x06054b50, true);
+    v.setUint16(4, 0, true);
+    v.setUint16(6, 0, true);
+    v.setUint16(8, count, true);
+    v.setUint16(10, count, true);
+    v.setUint32(12, centralSize, true);
+    v.setUint32(16, centralOffset, true);
+    v.setUint16(20, 0, true);       // commentaire ZIP
+    return new Uint8Array(buf);
+  }
+
+  // "sink" en mémoire : assemble le zip final comme un Blob composé de morceaux (petits
+  // en-têtes + les Blobs audio d'origine tels quels), au lieu de tout recopier dans un seul
+  // gros buffer contigu comme le fait JSZip.generateAsync(). C'est cette recopie géante qui
+  // faisait planter Safari/Chrome sur iPhone à partir d'un certain volume.
+  class MemorySink{
+    constructor(){ this.parts = []; this.finalBlob = null; }
+    async write(data){ this.parts.push(data); }
+    async close(){ this.finalBlob = new Blob(this.parts, {type:'application/zip'}); this.parts = null; }
+  }
+
+  class StreamingZipWriter{
+    constructor(sink){
+      this.sink = sink;               // MemorySink (navigateur) ou FileSystemWritableFileStream (disque)
+      this.offset = 0;
+      this.entries = [];
+      this.dt = dosDateTime(new Date());
+      this.queue = Promise.resolve(); // sérialise les écritures (plusieurs workers en concurrence)
+    }
+    // ajoute un fichier au zip en cours ; `blobOrBytes` est le Blob audio original (préféré,
+    // écrit tel quel — zéro copie) ou un Uint8Array. Renvoie une promesse résolue une fois écrit.
+    addFile(name, blobOrBytes){
+      this.queue = this.queue.then(() => this._addFileInner(name, blobOrBytes));
+      return this.queue;
+    }
+    async _addFileInner(name, blobOrBytes){
+      const isBlob = (typeof Blob !== 'undefined') && (blobOrBytes instanceof Blob);
+      // lecture temporaire, uniquement pour calculer le CRC d'UN fichier à la fois — jamais
+      // tout le lot d'un coup, donc l'empreinte mémoire reste bornée par la taille d'un seul
+      // audio, pas par la taille totale du lot.
+      const bytesForCrc = isBlob ? new Uint8Array(await blobOrBytes.arrayBuffer()) : blobOrBytes;
+      const nameBytes = new TextEncoder().encode(name);
+      const crc = crc32(bytesForCrc);
+      const size = bytesForCrc.length;
+      const header = buildLocalFileHeader(nameBytes, crc, size, this.dt);
+      await this.sink.write(header);
+      // écrit le Blob d'origine directement (pas de recopie) quand on en a un
+      await this.sink.write(isBlob ? blobOrBytes : bytesForCrc);
+      this.entries.push({ nameBytes, crc, size, offset: this.offset, dt: this.dt });
+      this.offset += header.length + size;
+    }
+    // écrit le répertoire central + fin de répertoire central, puis ferme le flux —
+    // c'est CE moment qui rend le fichier .zip valide et lisible.
+    async close(){
+      await this.queue;
+      const centralStart = this.offset;
+      for(const e of this.entries){
+        const rec = buildCentralDirRecord(e);
+        await this.sink.write(rec);
+        this.offset += rec.length;
+      }
+      const centralSize = this.offset - centralStart;
+      const eocd = buildEOCD(this.entries.length, centralSize, centralStart);
+      await this.sink.write(eocd);
+      await this.sink.close();
+    }
+  }
+
+  // crée (une seule fois par lot) le zip de sortie et son écrivain — en mémoire par défaut,
+  // ou directement sur disque si le mode streaming est actif.
+  function ensureZipWriterReady(){
+    if(currentZipWriter) return Promise.resolve();
+    if(!zipInitPromise){
+      zipInitPromise = (async () => {
+        const batchSizeVal = parseInt(el('batchSize').value) || 1000;
+        const totalBatchesExpected = Math.max(batchCounter+1, Math.ceil((words.length || 0) / batchSizeVal));
+        const filename = `audios_vocab_lot_${String(batchCounter+1).padStart(2,'0')}_sur_${String(totalBatchesExpected).padStart(2,'0')}.zip`;
+        let sink;
+        if(streamMode){
+          if(!dirHandle) throw new Error("Aucun dossier de sortie sélectionné pour le mode streaming.");
+          const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
+          sink = await fileHandle.createWritable();
+          log(`📁 Écriture en streaming démarrée sur disque : ${filename}`, 'info');
+        }else{
+          sink = new MemorySink();
+        }
+        currentZipWriter = new StreamingZipWriter(sink);
+        currentZipFilename = filename;
+      })();
+      zipInitPromise.finally(() => { zipInitPromise = null; });
+    }
+    return zipInitPromise;
+  }
+
   // ---------- batch handling (batches accumulate, downloaded individually or all at once) ----------
   // Sérialisé via une chaîne de promesses : avec plusieurs workers (concurrence > 1), deux
   // d'entre eux pouvaient sinon appeler finalizeBatch() au même instant et créer deux lots
@@ -1264,35 +1486,40 @@
     if(filesInCurrentZip === 0){ return; }
     batchCounter++;
     const n = filesInCurrentZip, w = wordsInCurrentZip.size;
-    const totalBatchesExpected = Math.max(batchCounter, Math.ceil((words.length || 0) / (parseInt(el('batchSize').value) || 1000)));
-    log(`Compression du lot ${batchCounter} (${n} fichiers, ${w} mots)…`, 'info');
-    const zipToCompress = zip;
     const audioKeysForThisBatch = currentBatchAudioKeys.slice();
-    // on libère immédiatement le zip/compteurs "en cours" pour que d'autres tâches puissent
-    // continuer à remplir un nouveau lot pendant que celui-ci se compresse/télécharge.
-    zip = new JSZip();
+    const writer = currentZipWriter;
+    const filename = currentZipFilename;
+    currentZipWriter = null;
+    currentZipFilename = null;
     filesInCurrentZip = 0;
     wordsInCurrentZip = new Set();
     currentBatchAudioKeys = [];
     bytesInCurrentZip = 0;
-    const blob = await zipToCompress.generateAsync({type:'blob'});
-    const batch = {
-      index: batchCounter,
-      blob,
-      filename: `audios_vocab_lot_${String(batchCounter).padStart(2,'0')}_sur_${String(totalBatchesExpected).padStart(2,'0')}.zip`,
-      wordCount: w,
-      fileCount: n,
-      status: 'ready'
-    };
+    updateCurrentBatchSizeLine();
+    if(!writer) return; // ne devrait pas arriver si filesInCurrentZip > 0
+
+    log(streamMode
+      ? `Finalisation du lot ${batchCounter} sur disque (${n} fichiers, ${w} mots)…`
+      : `Assemblage du lot ${batchCounter} (${n} fichiers, ${w} mots)…`, 'info');
+    await writer.close(); // écrit le répertoire central — rend le zip valide/lisible
+
+    let batch;
+    if(streamMode){
+      batch = { index: batchCounter, filename, wordCount: w, fileCount: n, status: 'saved-to-disk' };
+      log(`✓ Lot ${batchCounter} écrit sur disque : ${filename} (${n} fichiers, ${w} mots).`, 'ok');
+    }else{
+      const blob = writer.sink.finalBlob;
+      batch = { index: batchCounter, blob, filename, wordCount: w, fileCount: n, status: 'ready' };
+      log(`Lot ${batchCounter} prêt (${n} fichiers, ${w} mots, ${(blob.size/1024/1024).toFixed(1)} Mo).`, 'ok');
+    }
     batches.push(batch);
-    log(`Lot ${batchCounter} prêt (${n} fichiers, ${w} mots, ${(blob.size/1024/1024).toFixed(1)} Mo).`, 'ok');
-    // sauvegarde le ZIP fini sur disque et libère les audios bruts déjà intégrés dedans —
-    // on ATTEND que ce soit confirmé avant de continuer, pour ne jamais perdre un lot déjà
-    // téléchargé si la page plante juste après (ça causait des lots dupliqués/renumérotés).
+    // sauvegarde le lot fini et libère les audios bruts déjà intégrés dedans — on ATTEND que ce
+    // soit confirmé avant de continuer, pour ne jamais perdre un lot déjà prêt si la page plante
+    // juste après (ça causait des lots dupliqués/renumérotés).
     await persistFinishedBatch(batch, audioKeysForThisBatch);
     await saveMeta('batchCounter', batchCounter);
     renderBatchList();
-    downloadBatch(batches.length - 1); // téléchargement automatique dès que le lot est prêt
+    if(!streamMode) downloadBatch(batches.length - 1); // téléchargement automatique dès que le lot est prêt
   }
 
   function renderBatchList(){
@@ -1309,11 +1536,18 @@
       row.className = 'batch-row' + (b.status === 'downloaded' ? ' downloaded' : '');
       const info = document.createElement('div');
       info.className = 'b-info';
-      info.innerHTML = `Lot ${b.index}<span class="b-sub">${b.wordCount} mots · ${b.fileCount} fichiers ${b.status === 'downloaded' ? '· déjà téléchargé' : ''}</span>`;
+      const savedToDisk = b.status === 'saved-to-disk';
+      const statusText = savedToDisk ? `· déjà sur disque (${b.filename})` : (b.status === 'downloaded' ? '· déjà téléchargé' : '');
+      info.innerHTML = `Lot ${b.index}<span class="b-sub">${b.wordCount} mots · ${b.fileCount} fichiers ${statusText}</span>`;
       const btn = document.createElement('button');
       btn.className = 'secondary';
-      btn.textContent = b.status === 'downloaded' ? 'Re-télécharger' : 'Télécharger';
-      btn.addEventListener('click', () => downloadBatch(i));
+      if(savedToDisk){
+        btn.textContent = 'Déjà sur disque';
+        btn.disabled = true;
+      }else{
+        btn.textContent = b.status === 'downloaded' ? 'Re-télécharger' : 'Télécharger';
+        btn.addEventListener('click', () => downloadBatch(i));
+      }
       row.appendChild(info);
       row.appendChild(btn);
       container.appendChild(row);
@@ -1322,6 +1556,7 @@
 
   function downloadBatch(i){
     const b = batches[i];
+    if(!b.blob){ log(`Lot ${b.index} déjà écrit sur disque (${b.filename}) — rien à télécharger.`, 'info'); return; }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(b.blob);
     a.download = b.filename;
@@ -1343,8 +1578,33 @@
     log('Tous les lots ont été proposés au téléchargement.', 'ok');
   }
 
+  el('maxBatchMB').addEventListener('input', updateCurrentBatchSizeLine);
+
   el('downloadZipBtn').addEventListener('click', () => finalizeBatch());
   el('downloadAllBtn').addEventListener('click', () => downloadAllBatches());
+
+  // ---------- mode streaming : case à cocher + choix du dossier ----------
+  if(!supportsStreamMode){
+    el('streamModeChk').disabled = true;
+    el('streamBox').classList.add('disabled');
+    el('streamHint').textContent = "Mode streaming non disponible : votre navigateur ne supporte pas l'écriture directe sur disque (utilisez Chrome ou Edge sur ordinateur). Le mode ZIP en mémoire classique reste utilisé.";
+  }
+  el('streamModeChk').addEventListener('change', () => {
+    streamMode = el('streamModeChk').checked;
+    el('chooseFolderBtn').disabled = !streamMode;
+    if(streamMode && !dirHandle){
+      log('Mode streaming activé — choisissez un dossier de sortie avant de démarrer.', 'info');
+    }
+  });
+  el('chooseFolderBtn').addEventListener('click', async () => {
+    try{
+      dirHandle = await window.showDirectoryPicker();
+      el('streamFolderName').textContent = `📂 ${dirHandle.name}`;
+      log(`Dossier de sortie sélectionné : ${dirHandle.name}`, 'ok');
+    }catch(e){
+      if(e.name !== 'AbortError') log('Sélection du dossier annulée ou refusée : ' + e.message, 'err');
+    }
+  });
 
   // ---------- progress log download ----------
   function downloadProgressLog(){
@@ -1441,7 +1701,8 @@
         idx++; // now actually consume this task
         try{
           const blob = await ttsCall(task.ssml, voiceForCategory(task.category));
-          zip.file(task.filename, blob);
+          await ensureZipWriterReady();
+          await currentZipWriter.addFile(task.filename, blob);
           currentBatchAudioKeys.push(task.id + ':' + task.category);
           filesInCurrentZip++;
           wordsInCurrentZip.add(task.id);
@@ -1474,8 +1735,16 @@
         }
 
         updateCounters();
+        updateCurrentBatchSizeLine();
 
-        if(wordsInCurrentZip.size >= batchSize){
+        // deux déclencheurs de finalisation : le nombre de mots (organisation) ET la taille
+        // réelle en octets (protection anti-plantage — c'est celui qui compte sur mobile).
+        // Uniquement pertinent hors mode streaming : en streaming, les fichiers sont déjà sur
+        // disque au fur et à mesure, il n'y a pas de Blob géant à assembler.
+        if(!streamMode && wordsInCurrentZip.size > 0 && bytesInCurrentZip >= maxBatchBytes()){
+          log(`Plafond de taille atteint (${(bytesInCurrentZip/1024/1024).toFixed(1)} Mo) — finalisation anticipée du lot pour éviter tout risque de plantage.`, 'info');
+          await finalizeBatch();
+        }else if(wordsInCurrentZip.size >= batchSize){
           await finalizeBatch();
         }
       }
@@ -1515,6 +1784,7 @@
 
   el('startBtn').addEventListener('click', async () => {
     if(!voiceIdFemale || !voiceIdMale){ log('Sélectionnez une voix féminine et une voix masculine.', 'err'); return; }
+    if(streamMode && !dirHandle){ log('Mode streaming activé mais aucun dossier de sortie choisi — cliquez sur « Choisir un dossier de sortie ».', 'err'); return; }
     queue = buildQueue();
     if(queue.length === 0){ log('Rien à générer (tout est déjà fait, ou vide).', 'info'); return; }
 
@@ -1528,6 +1798,8 @@
     el('pauseBtn').disabled = false;
     el('stopBtn').disabled = false;
     el('downloadZipBtn').disabled = false;
+    el('streamModeChk').disabled = true;
+    el('chooseFolderBtn').disabled = true;
 
     log(`Démarrage : ${queue.length} audios à générer.`, 'info');
     await runQueue();
@@ -1541,6 +1813,7 @@
     el('startBtn').disabled = false;
     el('pauseBtn').disabled = true;
     el('stopBtn').disabled = true;
+    if(supportsStreamMode){ el('streamModeChk').disabled = false; el('chooseFolderBtn').disabled = !streamMode; }
   });
 
   el('pauseBtn').addEventListener('click', () => {
@@ -1565,6 +1838,7 @@
     el('pauseBtn').disabled = true;
     el('stopBtn').disabled = true;
     el('pauseBtn').textContent = '❚❚ Pause';
+    if(supportsStreamMode){ el('streamModeChk').disabled = false; el('chooseFolderBtn').disabled = !streamMode; }
   });
 
   el('restoreSessionBtn').addEventListener('click', restoreSession);
