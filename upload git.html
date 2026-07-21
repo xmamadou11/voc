@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload GitHub en Masse</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; background-color: #f6f8fa; color: #24292f; }
+        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+        h2 { font-size: 20px; margin-top: 0; }
+        label { display: block; margin-top: 15px; font-weight: bold; font-size: 14px; }
+        input[type="text"], input[type="password"] { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #d0d7de; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+        input[type="file"] { margin-top: 15px; font-size: 14px; }
+        button { margin-top: 25px; width: 100%; padding: 12px; background-color: #2da44e; color: white; border: none; border-radius: 6px; font-weight: bold; font-size: 16px; cursor: pointer; }
+        button:disabled { background-color: #94d3a2; cursor: not-allowed; }
+        #status { margin-top: 20px; padding: 12px; border-radius: 6px; background-color: #ddf4ff; color: #0969da; display: none; font-size: 14px; font-weight: bold; text-align: left; white-space: pre-wrap; word-break: break-word; }
+        .error { background-color: #ffebe9 !important; color: #cf222e !important; }
+        .success { background-color: #dafbe1 !important; color: #1a7f37 !important; }
+        .help-text { font-size: 12px; color: #57606a; margin-top: 5px; }
+        #log { margin-top: 10px; font-size: 12px; color: #57606a; max-height: 200px; overflow-y: auto; background: #f6f8fa; padding: 8px; border-radius: 6px; display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Uploader vers GitHub</h2>
+
+        <label for="token">Token GitHub (Classic PAT) :</label>
+        <input type="password" id="token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+        <div class="help-text">Nécessite le scope "repo".</div>
+
+        <label for="owner">Nom d'utilisateur GitHub :</label>
+        <input type="text" id="owner" placeholder="Ton pseudo">
+
+        <label for="repo">Nom du dépôt :</label>
+        <input type="text" id="repo" value="carnet-anglais">
+
+        <label for="folder">Dossier cible :</label>
+        <input type="text" id="folder" value="audio-zips">
+
+        <label for="fileInput">Fichiers à envoyer :</label>
+        <input type="file" id="fileInput" multiple>
+
+        <button id="uploadBtn">Envoyer les fichiers</button>
+
+        <div id="status"></div>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const logDiv = document.getElementById('log');
+
+        document.getElementById('uploadBtn').addEventListener('click', async () => {
+            const token = document.getElementById('token').value.trim();
+            const owner = document.getElementById('owner').value.trim();
+            const repo = document.getElementById('repo').value.trim();
+            const folder = document.getElementById('folder').value.trim();
+            const files = document.getElementById('fileInput').files;
+            const btn = document.getElementById('uploadBtn');
+
+            if (!token || !owner || !repo || files.length === 0) {
+                showStatus("Veuillez remplir tous les champs et sélectionner au moins un fichier.", "error");
+                return;
+            }
+
+            btn.disabled = true;
+            logDiv.style.display = 'block';
+            logDiv.innerHTML = '';
+            showStatus(`Préparation de l'envoi de ${files.length} fichier(s)...`, "");
+
+            const startTime = Date.now();
+            let successCount = 0;
+            let errorCount = 0;
+
+            try {
+                // 1. Récupérer la branche par défaut du dépôt
+                const branch = await getDefaultBranch(owner, repo, token);
+                log(`Branche par défaut détectée : ${branch}`);
+
+                // 2. Créer un blob pour chaque fichier (indépendant, pas de conflit possible)
+                const blobs = [];
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    showStatus(`Préparation (${i + 1}/${files.length}) : ${file.name}...`, "");
+                    const path = folder ? `${folder}/${file.name}` : file.name;
+                    try {
+                        const sha = await createBlob(owner, repo, token, file);
+                        blobs.push({ path, sha, name: file.name });
+                        log(`📦 ${file.name} préparé.`);
+                    } catch (err) {
+                        errorCount++;
+                        log(`❌ ${file.name} (préparation) : ${err.message}`);
+                    }
+                }
+
+                if (blobs.length === 0) {
+                    throw new Error("Aucun fichier n'a pu être préparé, envoi annulé.");
+                }
+
+                // 3. Regrouper tous les fichiers dans UN SEUL commit (pas de conflit "fast forward" possible)
+                showStatus(`Création du commit regroupant ${blobs.length} fichier(s)...`, "");
+                await commitBlobsInOneShot(owner, repo, token, branch, blobs);
+                successCount = blobs.length;
+                blobs.forEach(b => log(`✅ ${b.name} inclus dans le commit final.`));
+            } catch (err) {
+                showStatus(`Erreur bloquante : ${err.message}`, "error");
+                btn.disabled = false;
+                return;
+            }
+
+            const elapsedLabel = formatElapsed(Date.now() - startTime);
+            const finishedAtLabel = new Date().toLocaleTimeString('fr-FR');
+
+            if (errorCount === 0) {
+                showStatus(`✅ Terminé à ${finishedAtLabel} (durée : ${elapsedLabel}) ! ${successCount} fichier(s) envoyé(s) avec succès dans ${folder}.`, "success");
+            } else {
+                showStatus(`⚠️ Terminé à ${finishedAtLabel} (durée : ${elapsedLabel}). ${successCount} réussis, ${errorCount} échoués. Détails ci-dessous.`, "error");
+            }
+            btn.disabled = false;
+        });
+
+        function log(msg) {
+            const line = document.createElement('div');
+            line.textContent = msg;
+            logDiv.appendChild(line);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function showStatus(message, className) {
+            statusDiv.style.display = 'block';
+            statusDiv.innerText = message;
+            statusDiv.className = className;
+        }
+
+        async function ghFetch(url, token, options = {}) {
+            const response = await fetch(url, {
+                ...options,
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/vnd.github+json',
+                    ...(options.headers || {})
+                }
+            });
+            let data = null;
+            try { data = await response.json(); } catch (e) { /* pas de corps JSON */ }
+            if (!response.ok) {
+                const msg = (data && data.message) ? data.message : `HTTP ${response.status}`;
+                throw new Error(`${response.status} - ${msg}`);
+            }
+            return data;
+        }
+
+        async function getDefaultBranch(owner, repo, token) {
+            const repoInfo = await ghFetch(`https://api.github.com/repos/${owner}/${repo}`, token);
+            return repoInfo.default_branch;
+        }
+
+        // Convertit un fichier en base64 pur (sans préfixe data:...)
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function formatElapsed(ms) {
+            const totalSeconds = Math.round(ms / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            if (minutes === 0) return `${seconds}s`;
+            return `${minutes}min ${seconds}s`;
+        }
+
+        // Crée un blob Git pour un fichier (indépendant des autres, aucun risque de conflit ici).
+        // L'API Git Data n'a pas la limite de 1 Mo de l'API Contents ; elle gère jusqu'à 100 Mo,
+        // adapté aux zips audio de moins de 25 Mo.
+        async function createBlob(owner, repo, token, file) {
+            const base64Content = await fileToBase64(file);
+            const blob = await ghFetch(`https://api.github.com/repos/${owner}/${repo}/git/blobs`, token, {
+                method: 'POST',
+                body: JSON.stringify({ content: base64Content, encoding: 'base64' })
+            });
+            return blob.sha;
+        }
+
+        // Regroupe tous les blobs dans UN SEUL tree + commit + mise à jour de branche.
+        // C'est ce qui élimine complètement les erreurs "Update is not a fast forward" :
+        // au lieu de 80 lectures/écritures de branche à la suite (chacune pouvant entrer en
+        // conflit avec la précédente à cause de la latence de réplication de GitHub), on ne
+        // fait qu'une seule écriture finale, donc aucun conflit possible.
+        async function commitBlobsInOneShot(owner, repo, token, branch, blobs) {
+            // Référence actuelle de la branche
+            const refData = await ghFetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`, token);
+            const latestCommitSha = refData.object.sha;
+
+            // Tree de base (état actuel du dépôt)
+            const commitData = await ghFetch(`https://api.github.com/repos/${owner}/${repo}/git/commits/${latestCommitSha}`, token);
+            const baseTreeSha = commitData.tree.sha;
+
+            // Nouveau tree avec TOUS les fichiers ajoutés/modifiés en une fois
+            const newTree = await ghFetch(`https://api.github.com/repos/${owner}/${repo}/git/trees`, token, {
+                method: 'POST',
+                body: JSON.stringify({
+                    base_tree: baseTreeSha,
+                    tree: blobs.map(b => ({ path: b.path, mode: '100644', type: 'blob', sha: b.sha }))
+                })
+            });
+
+            // Un seul commit pour tous les fichiers
+            const newCommit = await ghFetch(`https://api.github.com/repos/${owner}/${repo}/git/commits`, token, {
+                method: 'POST',
+                body: JSON.stringify({
+                    message: `Ajout de ${blobs.length} fichier(s) audio`,
+                    tree: newTree.sha,
+                    parents: [latestCommitSha]
+                })
+            });
+
+            // Une seule mise à jour de la branche
+            await ghFetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`, token, {
+                method: 'PATCH',
+                body: JSON.stringify({ sha: newCommit.sha })
+            });
+        }
+    </script>
+</body>
+</html>
