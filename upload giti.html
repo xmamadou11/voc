@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload GitHub en Masse</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; background-color: #f6f8fa; color: #24292f; }
+        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+        h2 { font-size: 20px; margin-top: 0; }
+        label { display: block; margin-top: 15px; font-weight: bold; font-size: 14px; }
+        input[type="text"], input[type="password"] { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #d0d7de; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+        input[type="file"] { margin-top: 15px; font-size: 14px; }
+        button { margin-top: 25px; width: 100%; padding: 12px; background-color: #2da44e; color: white; border: none; border-radius: 6px; font-weight: bold; font-size: 16px; cursor: pointer; }
+        button:disabled { background-color: #94d3a2; cursor: not-allowed; }
+        #status { margin-top: 20px; padding: 12px; border-radius: 6px; background-color: #ddf4ff; color: #0969da; display: none; font-size: 14px; font-weight: bold; text-align: left; white-space: pre-wrap; word-break: break-word; }
+        .error { background-color: #ffebe9 !important; color: #cf222e !important; }
+        .success { background-color: #dafbe1 !important; color: #1a7f37 !important; }
+        .help-text { font-size: 12px; color: #57606a; margin-top: 5px; }
+        #log { margin-top: 10px; font-size: 12px; color: #57606a; max-height: 200px; overflow-y: auto; background: #f6f8fa; padding: 8px; border-radius: 6px; display: none; }
+        select { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #d0d7de; border-radius: 6px; box-sizing: border-box; font-size: 16px; background: white; }
+        .secondary-btn { margin-top: 8px; width: auto; padding: 8px 14px; background-color: #0969da; font-size: 13px; }
+        .mode-row { margin-top: 5px; display: flex; gap: 15px; flex-wrap: wrap; }
+        .mode-row label { display: inline-flex; align-items: center; gap: 5px; font-weight: normal; margin-top: 0; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Uploader vers GitHub</h2>
+
+        <label for="token">Token GitHub (Classic PAT) :</label>
+        <input type="password" id="token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+        <div class="help-text">Nécessite le scope "repo".</div>
+
+        <label for="owner">Nom d'utilisateur GitHub :</label>
+        <input type="text" id="owner" placeholder="Ton pseudo">
+
+        <label for="repo">Nom du dépôt :</label>
+        <input type="text" id="repo" value="carnet-anglais">
+
+        <label for="folderPath">Dossier cible (racine du dépôt si vide) :</label>
+        <input type="text" id="folderPath" list="folderSuggestions" placeholder="ex: sql  ou  app/admin/import">
+        <datalist id="folderSuggestions"></datalist>
+        <button type="button" id="refreshFoldersBtn" class="secondary-btn">🔄 Charger les dossiers existants (suggestions)</button>
+        <div class="help-text">Champ libre : tu peux taper n'importe quel chemin, même un sous-dossier dans un dossier qui existe déjà (ex: sql/migrations). Le bouton ne fait que proposer des suggestions basées sur les dossiers déjà présents dans le dépôt, il ne bloque rien.</div>
+
+        <label>Mode d'envoi :</label>
+        <div class="mode-row">
+            <label><input type="radio" name="uploadMode" value="files" checked> Fichiers individuels</label>
+            <label><input type="radio" name="uploadMode" value="folder"> Dossier complet (sous-dossiers préservés)</label>
+        </div>
+
+        <div id="filesModeBlock">
+            <label for="fileInput">Fichiers à envoyer :</label>
+            <input type="file" id="fileInput" multiple>
+        </div>
+
+        <div id="folderModeBlock" style="display:none;">
+            <label for="folderInput">Dossier local à envoyer :</label>
+            <input type="file" id="folderInput" webkitdirectory directory multiple>
+            <div class="help-text">Toute l'arborescence du dossier choisi (sous-dossiers, fichiers imbriqués, ex: vocab-app/app/admin/import/page.tsx) est reproduite telle quelle sur GitHub, à l'intérieur du "Dossier cible" ci-dessus.</div>
+        </div>
+
+        <button id="uploadBtn">Envoyer les fichiers</button>
+
+        <div id="status"></div>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const logDiv = document.getElementById('log');
+        const folderPathInput = document.getElementById('folderPath');
+        const folderSuggestions = document.getElementById('folderSuggestions');
+        const refreshFoldersBtn = document.getElementById('refreshFoldersBtn');
+        const filesModeBlock = document.getElementById('filesModeBlock');
+        const folderModeBlock = document.getElementById('folderModeBlock');
+        const fileInput = document.getElementById('fileInput');
+        const folderInput = document.getElementById('folderInput');
+
+        document.querySelectorAll('input[name="uploadMode"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                const isFolderMode = document.querySelector('input[name="uploadMode"]:checked').value === 'folder';
+                filesModeBlock.style.display = isFolderMode ? 'none' : 'block';
+                folderModeBlock.style.display = isFolderMode ? 'block' : 'none';
+            });
+        });
+
+        refreshFoldersBtn.addEventListener('click', async () => {
+            const token = document.getElementById('token').value.trim();
+            const owner = document.getElementById('owner').value.trim();
+            const repo = document.getElementById('repo').value.trim();
+
+            if (!token || !owner || !repo) {
+                showStatus("Renseigne le token, le nom d'utilisateur et le dépôt avant de charger les dossiers.", "error");
+                return;
+            }
+
+            refreshFoldersBtn.disabled = true;
+            const originalLabel = refreshFoldersBtn.textContent;
+            refreshFoldersBtn.textContent = '⏳ Chargement...';
+
+            try {
+                const branch = await getDefaultBranch(owner, repo, token);
+                const folders = await listFolders(owner, repo, token, branch);
+
+                folderSuggestions.innerHTML = folders.map(f => `<option value="${escapeHtml(f)}"></option>`).join('');
+
+                showStatus(`${folders.length} dossier(s) trouvé(s) dans le dépôt (proposés en suggestion, tu peux quand même taper autre chose).`, "success");
+            } catch (err) {
+                showStatus(`Erreur lors du chargement des dossiers : ${err.message}`, "error");
+            }
+
+            refreshFoldersBtn.disabled = false;
+            refreshFoldersBtn.textContent = originalLabel;
+        });
+
+        document.getElementById('uploadBtn').addEventListener('click', async () => {
+            const token = document.getElementById('token').value.trim();
+            const owner = document.getElementById('owner').value.trim();
+            const repo = document.getElementById('repo').value.trim();
+            const btn = document.getElementById('uploadBtn');
+
+            const folder = folderPathInput.value.trim().replace(/^\/+|\/+$/g, '');
+            const isFolderMode = document.querySelector('input[name="uploadMode"]:checked').value === 'folder';
+
+            // Construit la liste des { file, relativePath } à envoyer selon le mode choisi.
+            // Mode "fichiers individuels" : chemin = dossier cible + nom du fichier.
+            // Mode "dossier complet" : chemin = dossier cible + chemin relatif complet dans le
+            // dossier local choisi (webkitRelativePath), ce qui préserve toute l'arborescence
+            // (sous-dossiers imbriqués compris), y compris pour créer une nouvelle sous-structure
+            // à l'intérieur d'un dossier qui existe déjà sur GitHub.
+            let items = [];
+            if (isFolderMode) {
+                const files = folderInput.files;
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    const relPath = file.webkitRelativePath || file.name;
+                    items.push({ file, relativePath: relPath });
+                }
+            } else {
+                const files = fileInput.files;
+                for (let i = 0; i < files.length; i++) {
+                    items.push({ file: files[i], relativePath: files[i].name });
+                }
+            }
+
+            if (!token || !owner || !repo || items.length === 0) {
+                showStatus("Veuillez remplir tous les champs et sélectionner au moins un fichier (ou un dossier).", "error");
+                return;
+            }
+
+            btn.disabled = true;
+            logDiv.style.display = 'block';
+            logDiv.innerHTML = '';
+            showStatus(`Préparation de l'envoi de ${items.length} fichier(s)...`, "");
+
+            const startTime = Date.now();
+            let successCount = 0;
+            let errorCount = 0;
+
+            try {
+                // 1. Récupérer la branche par défaut du dépôt
+                const branch = await getDefaultBranch(owner, repo, token);
+                log(`Branche par défaut détectée : ${branch}`);
+
+                // 2. Créer un blob pour chaque fichier (indépendant, pas de conflit possible)
+                const blobs = [];
+                for (let i = 0; i < items.length; i++) {
+                    const { file, relativePath } = items[i];
+                    showStatus(`Préparation (${i + 1}/${items.length}) : ${relativePath}...`, "");
+                    const path = folder ? `${folder}/${relativePath}` : relativePath;
+                    try {
+                        const sha = await createBlob(owner, repo, token, file);
+                        blobs.push({ path, sha, name: relativePath });
+                        log(`📦 ${relativePath} préparé.`);
+                    } catch (err) {
+                        errorCount++;
+                        log(`❌ ${relativePath} (préparation) : ${err.message}`);
+                    }
+                }
+
+                if (blobs.length === 0) {
+                    throw new Error("Aucun fichier n'a pu être préparé, envoi annulé.");
+                }
+
+                // 3. Regrouper tous les fichiers dans UN SEUL commit (pas de conflit "fast forward" possible)
+                showStatus(`Création du commit regroupant ${blobs.length} fichier(s)...`, "");
+                await commitBlobsInOneShot(owner, repo, token, branch, blobs);
+                successCount = blobs.length;
+                blobs.forEach(b => log(`✅ ${b.name} inclus dans le commit final.`));
+            } catch (err) {
+                showStatus(`Erreur bloquante : ${err.message}`, "error");
+                btn.disabled = false;
+                return;
+            }
+
+            const elapsedLabel = formatElapsed(Date.now() - startTime);
+            const finishedAtLabel = new Date().toLocaleTimeString('fr-FR');
+            const folderLabel = folder || '(racine)';
+
+            if (errorCount === 0) {
+                showStatus(`✅ Terminé à ${finishedAtLabel} (durée : ${elapsedLabel}) ! ${successCount} fichier(s) envoyé(s) avec succès dans ${folderLabel}.`, "success");
+            } else {
+                showStatus(`⚠️ Terminé à ${finishedAtLabel} (durée : ${elapsedLabel}). ${successCount} réussis, ${errorCount} échoués. Détails ci-dessous.`, "error");
+            }
+            btn.disabled = false;
+        });
+
+        function log(msg) {
+            const line = document.createElement('div');
+            line.textContent = msg;
+            logDiv.appendChild(line);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function showStatus(message, className) {
+            statusDiv.style.display = 'block';
+            statusDiv.innerText = message;
+            statusDiv.className = className;
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        async function ghFetch(url, token, options = {}) {
+            const response = await fetch(url, {
+                ...options,
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/vnd.github+json',
+                    ...(options.headers || {})
+                }
+            });
+            let data = null;
+            try { data = await response.json(); } catch (e) { /* pas de corps JSON */ }
+            if (!response.ok) {
+                let msg = (data && data.message) ? data.message : `HTTP ${response.status}`;
+                // Les erreurs 422 de GitHub incluent souvent un tableau "errors" avec le détail
+                // exact du champ en cause (utile pour diagnostiquer, ex: chemin en conflit).
+                if (data && Array.isArray(data.errors) && data.errors.length > 0) {
+                    const detail = data.errors.map(e => e.message || e.code || JSON.stringify(e)).join(' | ');
+                    msg += ` (${detail})`;
+                }
+                throw new Error(`${response.status} - ${msg}`);
+            }
+            return data;
+        }
+
+        async function getDefaultBranch(owner, repo, token) {
+            const repoInfo = await ghFetch(`https://api.github.com/repos/${owner}/${repo}`, token);
+            return repoInfo.default_branch;
+        }
+
+        // Liste tous les dossiers (arbres "tree") du dépôt via l'API Git Trees en mode récursif.
+        // Git n'a pas de vraie notion de "dossier vide" : un dossier n'existe que s'il contient
+        // au moins un fichier. Cette fonction retourne donc tous les chemins de dossiers déjà
+        // utilisés par des fichiers existants dans le dépôt.
+        async function listFolders(owner, repo, token, branch) {
+            const data = await ghFetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`, token);
+            const folders = (data.tree || [])
+                .filter(item => item.type === 'tree')
+                .map(item => item.path);
+            folders.sort((a, b) => a.localeCompare(b));
+            return folders;
+        }
+
+        // Convertit un fichier en base64 pur (sans préfixe data:...)
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function formatElapsed(ms) {
+            const totalSeconds = Math.round(ms / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            if (minutes === 0) return `${seconds}s`;
+            return `${minutes}min ${seconds}s`;
+        }
+
+        // Crée un blob Git pour un fichier (indépendant des autres, aucun risque de conflit ici).
+        // L'API Git Data n'a pas la limite de 1 Mo de l'API Contents ; elle gère jusqu'à 100 Mo,
+        // adapté aux zips audio de moins de 25 Mo.
+        async function createBlob(owner, repo, token, file) {
+            // Cas particulier : fichier vide (0 octet). L'API Git Blobs de GitHub renvoie une
+            // erreur 422 ("content" invalide) quand on lui envoie un contenu base64 vide — c'est
+            // une limitation connue de l'API. La solution est d'envoyer un contenu "" en encodage
+            // utf-8 plutôt qu'en base64 pour ce cas précis.
+            if (file.size === 0) {
+                const blob = await ghFetch(`https://api.github.com/repos/${owner}/${repo}/git/blobs`, token, {
+                    method: 'POST',
+                    body: JSON.stringify({ content: '', encoding: 'utf-8' })
+                });
+                return blob.sha;
+            }
+
+            const base64Content = await fileToBase64(file);
+            const blob = await ghFetch(`https://api.github.com/repos/${owner}/${repo}/git/blobs`, token, {
+                method: 'POST',
+                body: JSON.stringify({ content: base64Content, encoding: 'base64' })
+            });
+            return blob.sha;
+        }
+
+        // Regroupe tous les blobs dans UN SEUL tree + commit + mise à jour de branche.
+        // C'est ce qui élimine complètement les erreurs "Update is not a fast forward" :
+        // au lieu de 80 lectures/écritures de branche à la suite (chacune pouvant entrer en
+        // conflit avec la précédente à cause de la latence de réplication de GitHub), on ne
+        // fait qu'une seule écriture finale, donc aucun conflit possible.
+        // Un dossier qui n'existe pas encore est créé automatiquement à ce moment-là,
+        // simplement parce qu'un fichier y est placé.
+        async function commitBlobsInOneShot(owner, repo, token, branch, blobs) {
+            // Référence actuelle de la branche
+            const refData = await ghFetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`, token);
+            const latestCommitSha = refData.object.sha;
+
+            // Tree de base (état actuel du dépôt)
+            const commitData = await ghFetch(`https://api.github.com/repos/${owner}/${repo}/git/commits/${latestCommitSha}`, token);
+            const baseTreeSha = commitData.tree.sha;
+
+            // Nouveau tree avec TOUS les fichiers ajoutés/modifiés en une fois
+            const newTree = await ghFetch(`https://api.github.com/repos/${owner}/${repo}/git/trees`, token, {
+                method: 'POST',
+                body: JSON.stringify({
+                    base_tree: baseTreeSha,
+                    tree: blobs.map(b => ({ path: b.path, mode: '100644', type: 'blob', sha: b.sha }))
+                })
+            });
+
+            // Un seul commit pour tous les fichiers
+            const newCommit = await ghFetch(`https://api.github.com/repos/${owner}/${repo}/git/commits`, token, {
+                method: 'POST',
+                body: JSON.stringify({
+                    message: `Ajout de ${blobs.length} fichier(s) audio`,
+                    tree: newTree.sha,
+                    parents: [latestCommitSha]
+                })
+            });
+
+            // Une seule mise à jour de la branche
+            await ghFetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`, token, {
+                method: 'PATCH',
+                body: JSON.stringify({ sha: newCommit.sha })
+            });
+        }
+    </script>
+</body>
+</html>
