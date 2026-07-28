@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Book Audio Linker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root {
+    --bg: #0e1220; --surface: #171c2c; --surface-2: #1e2438;
+    --border: #2a3148; --text: #eaecf5; --text-muted: #8b93ac; --accent: #5eb1ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, system-ui, sans-serif; font-size: 14px;
+  }
+  header {
+    padding: 0.8rem 1rem; background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem;
+  }
+  header h1 { font-size: 1rem; margin: 0 1rem 0 0; }
+  select, input[type=text], button {
+    background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 0.4rem 0.6rem; font-size: 0.85rem;
+  }
+  button { cursor: pointer; }
+  button.primary { background: var(--accent); color: #0e1220; font-weight: 600; border: none; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  main { display: flex; height: calc(100vh - 58px); }
+  .pane-pdf { flex: 1; display: flex; flex-direction: column; align-items: center; overflow: auto; padding: 1rem; }
+  #pdfCanvas { background: #fff; box-shadow: 0 0 20px rgba(0,0,0,0.4); max-width: 100%; }
+  .pdf-nav { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.8rem; }
+  .pane-side {
+    width: 360px; border-left: 1px solid var(--border); background: var(--surface);
+    padding: 1rem; overflow-y: auto; flex-shrink: 0;
+  }
+  .pane-side h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin: 1.2rem 0 0.5rem; }
+  .pane-side h2:first-child { margin-top: 0; }
+  .track-list, .assigned-list { list-style: none; margin: 0; padding: 0; }
+  .track-list li, .assigned-list li {
+    display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.4rem;
+    border-radius: 6px; margin-bottom: 0.25rem; font-size: 0.8rem;
+  }
+  .track-list li:hover { background: var(--surface-2); }
+  .track-list li span, .assigned-list li span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .assigned-list li { background: var(--surface-2); }
+  .assigned-list button { padding: 0.1rem 0.4rem; font-size: 0.75rem; }
+  .empty-hint { color: var(--text-muted); font-size: 0.8rem; }
+  #dropZone {
+    border: 1px dashed var(--border); border-radius: 8px; padding: 1rem; text-align: center;
+    color: var(--text-muted); font-size: 0.8rem; margin-bottom: 0.6rem;
+  }
+  .label-row { display: flex; gap: 0.4rem; margin-top: 0.4rem; }
+  .label-row input { flex: 1; }
+  footer { padding: 0.6rem 1rem; background: var(--surface); border-top: 1px solid var(--border); display: flex; gap: 0.6rem; }
+  .status { color: var(--text-muted); font-size: 0.78rem; align-self: center; margin-left: auto; }
+
+  /* --- Auto-detect additions --- */
+  .autodetect-box { border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem; margin-bottom: 0.8rem; background: var(--surface-2); }
+  .autodetect-box label { display:block; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 0.25rem; }
+  .autodetect-box input[type=text] { width: 100%; margin-bottom: 0.5rem; font-family: ui-monospace, monospace; font-size: 0.78rem; }
+  .autodetect-box button { width: 100%; }
+  #scanModal {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+    z-index: 100; align-items: center; justify-content: center;
+  }
+  #scanModal .box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    width: 92%; max-width: 720px; max-height: 82vh; display: flex; flex-direction: column;
+  }
+  #scanModal .box-header { padding: 0.9rem 1rem 0.4rem; }
+  #scanModal .box-header h2 { margin: 0 0 0.2rem; font-size: 1rem; }
+  #scanModal .box-body { padding: 0 1rem; overflow-y: auto; flex: 1; }
+  #scanModal .box-footer { padding: 0.8rem 1rem; display: flex; gap: 0.6rem; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); }
+  #scanResultsTable { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  #scanResultsTable th { text-align: left; color: var(--text-muted); font-weight: 500; padding: 0.3rem; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); }
+  #scanResultsTable td { padding: 0.3rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  #scanResultsTable select { width: 100%; font-size: 0.75rem; padding: 0.2rem; }
+  .conf-high { color: #7ee787; }
+  .conf-low { color: #f0a35a; }
+  .conf-none { color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📖🔊 Book Audio Linker</h1>
+  <label>Livre
+    <select id="bookSelect">
+      <option>Essential Grammar in Use — niveau 1</option>
+      <option>Essential Grammar in Use — niveau 2</option>
+      <option>Essential Grammar in Use — niveau 3</option>
+      <option>American Accent Training — 1</option>
+      <option>American Accent Training — 2</option>
+      <option>American Accent Training — 3</option>
+      <option>American Accent Training — 4</option>
+      <option value="__custom__">Autre / renommer…</option>
+    </select>
+  </label>
+  <input type="file" id="pdfInput" accept="application/pdf">
+  <span id="pdfName" class="empty-hint"></span>
+</header>
+
+<main>
+  <div class="pane-pdf">
+    <div class="pdf-nav">
+      <button id="prevPage">◀</button>
+      <input type="text" id="pageInput" value="1" style="width:50px;text-align:center">
+      <span id="pageCount">/ ?</span>
+      <button id="nextPage">▶</button>
+    </div>
+    <canvas id="pdfCanvas"></canvas>
+  </div>
+
+  <div class="pane-side">
+    <h2>Pistes audio du livre</h2>
+    <div id="dropZone">Dépose ici les mp3 de ce livre, ou <label style="text-decoration:underline;cursor:pointer">choisis un dossier<input type="file" id="mp3Input" webkitdirectory multiple style="display:none"></label></div>
+    <ul class="track-list" id="trackList"></ul>
+
+    <div class="autodetect-box">
+      <label for="detectMode">Mode de correspondance</label>
+      <select id="detectMode" style="width:100%;margin-bottom:0.5rem">
+        <option value="track">Numéro de piste — "Track 9", fichiers "009 - ...mp3" (ex. American Accent Training)</option>
+        <option value="unit">Numéro d'unité — fichiers "UNIT 41 C.mp3" ou "1A_1.mp3" (ex. collection Grammar in Use)</option>
+      </select>
+      <div id="trackModeOptions">
+        <label for="detectRegex">Motif de détection (regex, insensible à la casse)</label>
+        <input type="text" id="detectRegex" value="(?:track|piste|cd\s*\d+[\s.:]*track)\s*[\s:.-]*\d+(?:\.\d+)?">
+      </div>
+      <p class="empty-hint" id="modeHint"></p>
+      <button id="scanPdfBtn">🔍 Scanner tout le PDF (pages + index final)</button>
+      <p class="empty-hint" id="scanStatus"></p>
+    </div>
+
+    <h2>Pistes liées à la page courante</h2>
+    <ul class="assigned-list" id="assignedList"></ul>
+    <p class="empty-hint" id="assignedEmpty">Aucune piste liée à cette page.</p>
+    <div class="label-row">
+      <input type="text" id="labelInput" placeholder="Étiquette (ex. Exercise 4.2)">
+    </div>
+    <p class="empty-hint">Sélectionne une piste ci-dessus puis clique dessus pour la lier manuellement à la page affichée, avec l'étiquette tapée ici (optionnelle).</p>
+  </div>
+</main>
+
+<footer>
+  <button id="importManifest">Importer un manifest existant</button>
+  <input type="file" id="manifestInput" accept="application/json" style="display:none">
+  <button id="exportManifest" class="primary">Exporter le manifest JSON</button>
+  <button id="clearManifest">Vider tout</button>
+  <span class="status" id="status"></span>
+</footer>
+
+<div id="scanModal">
+  <div class="box">
+    <div class="box-header">
+      <h2>Résultats de la détection automatique</h2>
+      <p class="empty-hint">Vérifie/corrige le fichier proposé pour chaque piste détectée, décoche celles à ignorer, puis valide.</p>
+    </div>
+    <div class="box-body">
+      <table id="scanResultsTable">
+        <thead>
+          <tr><th style="width:24px"></th><th style="width:50px">Page</th><th>Détecté dans le PDF</th><th>Fichier mp3 associé</th></tr>
+        </thead>
+        <tbody id="scanResultsBody"></tbody>
+      </table>
+    </div>
+    <div class="box-footer">
+      <span class="empty-hint" id="scanSummary"></span>
+      <div style="display:flex;gap:0.6rem">
+        <button id="scanCancelBtn">Annuler</button>
+        <button id="scanConfirmBtn" class="primary">Lier la sélection</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+let pdfDoc = null;
+let currentPage = 1;
+let tracks = []; // {name, url} — objectURL local à la session, pas persisté tel quel
+let manifest = JSON.parse(localStorage.getItem("bookAudioManifest") || "[]");
+// manifest entries: { book, page, label, filename }
+let scanResults = []; // { page, raw, matchName, score }
+
+const canvas = document.getElementById("pdfCanvas");
+const ctx = canvas.getContext("2d");
+
+function currentBook() {
+  const sel = document.getElementById("bookSelect");
+  if (sel.value === "__custom__") {
+    const name = prompt("Nom du livre :", "");
+    if (name) {
+      const opt = document.createElement("option");
+      opt.value = name; opt.textContent = name; opt.selected = true;
+      sel.insertBefore(opt, sel.lastElementChild);
+      return name;
+    }
+    sel.selectedIndex = 0;
+  }
+  return sel.value;
+}
+
+function setStatus(msg) {
+  document.getElementById("status").textContent = msg;
+  setTimeout(() => { document.getElementById("status").textContent = ""; }, 2500);
+}
+
+function saveManifest() {
+  localStorage.setItem("bookAudioManifest", JSON.stringify(manifest));
+}
+
+async function renderPage(num) {
+  if (!pdfDoc) return;
+  const page = await pdfDoc.getPage(num);
+  const viewport = page.getViewport({ scale: 1.4 });
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  await page.render({ canvasContext: ctx, viewport }).promise;
+  document.getElementById("pageInput").value = num;
+  renderAssignedList();
+}
+
+document.getElementById("pdfInput").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  document.getElementById("pdfName").textContent = file.name;
+  const buf = await file.arrayBuffer();
+  pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
+  document.getElementById("pageCount").textContent = "/ " + pdfDoc.numPages;
+  currentPage = 1;
+  renderPage(currentPage);
+});
+
+document.getElementById("prevPage").addEventListener("click", () => {
+  if (currentPage > 1) { currentPage--; renderPage(currentPage); }
+});
+document.getElementById("nextPage").addEventListener("click", () => {
+  if (pdfDoc && currentPage < pdfDoc.numPages) { currentPage++; renderPage(currentPage); }
+});
+document.getElementById("pageInput").addEventListener("change", (e) => {
+  const n = parseInt(e.target.value, 10);
+  if (pdfDoc && n >= 1 && n <= pdfDoc.numPages) { currentPage = n; renderPage(currentPage); }
+});
+
+document.getElementById("mp3Input").addEventListener("change", (e) => {
+  const files = Array.from(e.target.files).filter(f => f.name.toLowerCase().endsWith(".mp3"));
+  // Certains packs audio rangent le numéro d'unité dans le nom du DOSSIER
+  // (ex. "41 Unit 41/b/Page011_10.mp3") plutôt que dans le nom du fichier.
+  // On garde le chemin relatif pour la détection, le nom court pour l'affichage.
+  tracks = files.map(f => ({ name: f.name, path: f.webkitRelativePath || f.name, url: URL.createObjectURL(f) }));
+  renderTrackList();
+  setStatus(`${tracks.length} pistes chargées`);
+  autoSelectMode();
+});
+
+// Devine le mode le plus probable d'après les noms de fichiers chargés
+function autoSelectMode() {
+  if (!tracks.length) return;
+  let trackLike = 0, unitLike = 0;
+  tracks.forEach(t => {
+    if (/^\s*0*\d{1,4}\s*-\s*/.test(t.name)) trackLike++;
+    else if (/unit\s*0*\d+/i.test(t.path) || /(?:^|\/)0*\d+\s*[a-z][_\s]/i.test(t.path)) unitLike++;
+  });
+  const sel = document.getElementById("detectMode");
+  sel.value = unitLike > trackLike ? "unit" : "track";
+  updateModeUI();
+  document.getElementById("modeHint").textContent =
+    unitLike > trackLike
+      ? `Mode auto-détecté : Unité (${unitLike}/${tracks.length} fichiers ressemblent à "UNIT N…" / "NA_1…")`
+      : `Mode auto-détecté : Piste (${trackLike}/${tracks.length} fichiers ressemblent à "NNN - …")`;
+}
+
+function updateModeUI() {
+  const mode = document.getElementById("detectMode").value;
+  document.getElementById("trackModeOptions").style.display = mode === "track" ? "block" : "none";
+}
+document.getElementById("detectMode").addEventListener("change", updateModeUI);
+updateModeUI();
+
+function renderTrackList() {
+  const ul = document.getElementById("trackList");
+  ul.innerHTML = "";
+  tracks.forEach(t => {
+    const li = document.createElement("li");
+    const playBtn = document.createElement("button");
+    playBtn.textContent = "▶";
+    playBtn.onclick = (ev) => { ev.stopPropagation(); new Audio(t.url).play(); };
+    const span = document.createElement("span");
+    span.textContent = t.path;
+    span.title = t.path;
+    li.appendChild(playBtn);
+    li.appendChild(span);
+    li.title = "Cliquer pour lier cette piste à la page affichée";
+    li.onclick = () => linkTrack(t.path);
+    ul.appendChild(li);
+  });
+}
+
+function linkTrack(filename) {
+  if (!pdfDoc) { setStatus("Charge d'abord un PDF"); return; }
+  const label = document.getElementById("labelInput").value.trim();
+  manifest.push({ book: currentBook(), page: currentPage, label, filename });
+  saveManifest();
+  document.getElementById("labelInput").value = "";
+  renderAssignedList();
+  setStatus(`Lié : ${filename} → page ${currentPage}`);
+}
+
+function renderAssignedList() {
+  const ul = document.getElementById("assignedList");
+  const emptyHint = document.getElementById("assignedEmpty");
+  const book = currentBook();
+  const entries = manifest
+    .map((m, i) => ({ ...m, i }))
+    .filter(m => m.book === book && m.page === currentPage);
+  ul.innerHTML = "";
+  entries.forEach(entry => {
+    const li = document.createElement("li");
+    const span = document.createElement("span");
+    span.textContent = entry.label ? `${entry.filename} — ${entry.label}` : entry.filename;
+    const del = document.createElement("button");
+    del.textContent = "✕";
+    del.onclick = () => { manifest.splice(entry.i, 1); saveManifest(); renderAssignedList(); };
+    li.appendChild(span);
+    li.appendChild(del);
+    ul.appendChild(li);
+  });
+  emptyHint.style.display = entries.length ? "none" : "block";
+}
+
+document.getElementById("bookSelect").addEventListener("change", renderAssignedList);
+
+document.getElementById("exportManifest").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "book-audio-manifest.json";
+  a.click();
+});
+
+document.getElementById("importManifest").addEventListener("click", () => {
+  document.getElementById("manifestInput").click();
+});
+document.getElementById("manifestInput").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  try {
+    const imported = JSON.parse(text);
+    manifest = imported;
+    saveManifest();
+    renderAssignedList();
+    setStatus(`Manifest importé (${manifest.length} entrées)`);
+  } catch {
+    alert("Fichier JSON invalide.");
+  }
+});
+
+document.getElementById("clearManifest").addEventListener("click", () => {
+  if (confirm("Tout effacer ? (le PDF et les mp3 chargés ne sont pas affectés, seulement le manifest)")) {
+    manifest = [];
+    saveManifest();
+    renderAssignedList();
+  }
+});
+
+/* ============================================================
+   AUTO-DÉTECTION : scanne le texte du PDF (page par page, y
+   compris un éventuel index/tracklist en fin de livre) pour
+   repérer les mentions de pistes ("Track 4.2", "Piste 12"...)
+   et propose automatiquement le fichier mp3 correspondant en
+   comparant les nombres/texte normalisés.
+   ============================================================ */
+
+function normalize(s) {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+// Numéro de piste en tête de fichier : "009 - Exercise 1-2 - ...mp3" -> 9
+function leadingTrackNumber(filename) {
+  const m = filename.match(/^\s*0*(\d{1,4})\s*-/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+// Numéro d'unité, cherché dans tout le CHEMIN (pas seulement le nom du fichier),
+// car certains packs le mettent dans un dossier : ".../41 Unit 41/b/Page011_10.mp3"
+// et d'autres dans le nom lui-même : "UNIT 41 C.mp3" ou "1A_1.mp3".
+function leadingUnitNumber(pathOrName) {
+  let m = pathOrName.match(/unit\s*0*(\d+)/i);
+  if (m) return parseInt(m[1], 10);
+  m = pathOrName.match(/(?:^|\/)0*(\d+)\s*[a-z][_\s]/i);
+  if (m) return parseInt(m[1], 10);
+  return null;
+}
+
+function findBestTrackNumberMatch(label) {
+  const numMatch = label.match(/(\d+)/);
+  if (!numMatch) return { match: null, score: 0 };
+  const num = parseInt(numMatch[1], 10);
+  const found = tracks.find(t => leadingTrackNumber(t.path.split("/").pop()) === num);
+  return found ? { match: found, score: 3 } : { match: null, score: 0 };
+}
+
+// --- Mode "Track" : détecte "Track N" (ou motif personnalisé) dans le texte de chaque page ---
+async function scanPdfForTracks() {
+  if (!pdfDoc) { setStatus("Charge d'abord un PDF"); return; }
+  if (!tracks.length) { setStatus("Charge d'abord les mp3 du livre"); return; }
+
+  const regexSrc = document.getElementById("detectRegex").value.trim();
+  let re;
+  try { re = new RegExp(regexSrc, "gi"); }
+  catch { alert("Regex de détection invalide."); return; }
+
+  const scanStatus = document.getElementById("scanStatus");
+  const found = [];
+
+  for (let p = 1; p <= pdfDoc.numPages; p++) {
+    scanStatus.textContent = `Analyse page ${p}/${pdfDoc.numPages}…`;
+    const page = await pdfDoc.getPage(p);
+    const content = await page.getTextContent();
+    const text = content.items.map(it => it.str).join(" ");
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      found.push({ page: p, raw: m[0].replace(/\s+/g, " ").trim() });
+      if (m.index === re.lastIndex) re.lastIndex++;
+    }
+  }
+
+  // dédoublonne page+libellé identiques (ex. si l'index final répète les mêmes libellés)
+  const seen = new Set();
+  const deduped = found.filter(f => {
+    const key = f.page + "|" + normalize(f.raw);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  scanResults = deduped.map(f => {
+    const { match, score } = findBestTrackNumberMatch(f.raw);
+    return { page: f.page, raw: f.raw, matchName: match ? match.path : "", score };
+  });
+
+  scanStatus.textContent = `${scanResults.length} mention(s) de piste détectée(s).`;
+  openScanModal();
+}
+
+// --- Mode "Unit" : repère le numéro d'unité propre à CHAQUE page (en début de flux
+// de texte, pour éviter les faux positifs des renvois du type "-> Unit 24" en bas de
+// page), puis relie en bloc tous les fichiers mp3 dont le numéro d'unité correspond. ---
+async function scanPdfForUnits() {
+  if (!pdfDoc) { setStatus("Charge d'abord un PDF"); return; }
+  if (!tracks.length) { setStatus("Charge d'abord les mp3 du livre"); return; }
+
+  const scanStatus = document.getElementById("scanStatus");
+  const pageUnits = []; // { page, unit }
+
+  for (let p = 1; p <= pdfDoc.numPages; p++) {
+    scanStatus.textContent = `Analyse page ${p}/${pdfDoc.numPages}…`;
+    const page = await pdfDoc.getPage(p);
+    const content = await page.getTextContent();
+    const text = content.items.map(it => it.str).join(" ");
+    const window = text.slice(0, 400); // le titre d'unité est en tout début de flux
+    const m = window.match(/\bunit\s*(\d{1,3})\b/i);
+    if (m) pageUnits.push({ page: p, unit: parseInt(m[1], 10) });
+  }
+
+  // pré-calcule le numéro d'unité de chaque fichier mp3
+  const trackUnits = tracks.map(t => ({ track: t, unit: leadingUnitNumber(t.path) }));
+
+  scanResults = [];
+  pageUnits.forEach(pu => {
+    trackUnits.filter(tu => tu.unit === pu.unit).forEach(tu => {
+      scanResults.push({ page: pu.page, raw: `Unit ${pu.unit} — ${tu.track.path}`, matchName: tu.track.path, score: 3 });
+    });
+  });
+
+  scanStatus.textContent = `${pageUnits.length} page(s) avec une unité identifiée, ${scanResults.length} lien(s) proposé(s).`;
+  openScanModal();
+}
+
+function runScan() {
+  const mode = document.getElementById("detectMode").value;
+  if (mode === "unit") scanPdfForUnits();
+  else scanPdfForTracks();
+}
+
+function openScanModal() {
+  const tbody = document.getElementById("scanResultsBody");
+  tbody.innerHTML = "";
+
+  scanResults.forEach((r, idx) => {
+    const tr = document.createElement("tr");
+
+    const tdCheck = document.createElement("td");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = r.score > 0; // pré-coché uniquement si une correspondance a été trouvée
+    cb.dataset.idx = idx;
+    tdCheck.appendChild(cb);
+
+    const tdPage = document.createElement("td");
+    tdPage.textContent = r.page;
+
+    const tdRaw = document.createElement("td");
+    tdRaw.textContent = r.raw;
+
+    const tdFile = document.createElement("td");
+    const select = document.createElement("select");
+    select.dataset.idx = idx;
+    const noneOpt = document.createElement("option");
+    noneOpt.value = ""; noneOpt.textContent = "— aucun —";
+    select.appendChild(noneOpt);
+    tracks.forEach(t => {
+      const opt = document.createElement("option");
+      opt.value = t.path;
+      opt.textContent = t.path;
+      if (t.path === r.matchName) opt.selected = true;
+      select.appendChild(opt);
+    });
+    const confClass = r.score >= 2 ? "conf-high" : (r.score === 1 ? "conf-low" : "conf-none");
+    select.className = confClass;
+    tdFile.appendChild(select);
+
+    tr.appendChild(tdCheck);
+    tr.appendChild(tdPage);
+    tr.appendChild(tdRaw);
+    tr.appendChild(tdFile);
+    tbody.appendChild(tr);
+  });
+
+  const matched = scanResults.filter(r => r.score > 0).length;
+  document.getElementById("scanSummary").textContent =
+    `${matched}/${scanResults.length} correspondances automatiques trouvées.`;
+
+  document.getElementById("scanModal").style.display = "flex";
+}
+
+function closeScanModal() {
+  document.getElementById("scanModal").style.display = "none";
+}
+
+document.getElementById("scanPdfBtn").addEventListener("click", runScan);
+document.getElementById("scanCancelBtn").addEventListener("click", closeScanModal);
+
+document.getElementById("scanConfirmBtn").addEventListener("click", () => {
+  const book = currentBook();
+  const rows = document.querySelectorAll("#scanResultsBody tr");
+  let added = 0;
+  rows.forEach(tr => {
+    const cb = tr.querySelector('input[type=checkbox]');
+    const select = tr.querySelector('select');
+    if (!cb.checked) return;
+    const filename = select.value;
+    if (!filename) return;
+    const idx = parseInt(cb.dataset.idx, 10);
+    const r = scanResults[idx];
+    manifest.push({ book, page: r.page, label: r.raw, filename });
+    added++;
+  });
+  saveManifest();
+  closeScanModal();
+  renderAssignedList();
+  setStatus(`${added} piste(s) liée(s) automatiquement.`);
+});
+</script>
+
+</body>
+</html>
